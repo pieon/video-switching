@@ -117,7 +117,7 @@ const AdminPage: React.FC<{ onStart: (mode: Mode) => void }> = ({ onStart }) => 
               style={{ marginRight: 12, width: 20, height: 20 }}
             />
             <div>
-              <div style={{ fontWeight: 600, fontSize: 18, color: "black" }}>Switching Mode</div>
+              <div style={{ fontWeight: 600, fontSize: 18, color: "black"}}>Switching Mode</div>
               <div style={{ fontSize: 14, color: "black", marginTop: 4 }}>
                 Full controls available, can switch between videos freely
               </div>
