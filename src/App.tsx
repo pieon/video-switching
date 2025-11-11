@@ -22,6 +22,7 @@ const MOCK_VIDEOS: Video[] = [
 function useSession(mode: Mode) {
   const [completed, setCompleted] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
+  const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
 
   // Persist to localStorage
   useEffect(() => {
@@ -32,20 +33,29 @@ function useSession(mode: Mode) {
         const s = JSON.parse(raw);
         setCompleted(s.completed ?? []);
         setCurrent(s.current ?? null);
+        setPlaybackPositions(s.playbackPositions ?? {});
       } catch {}
     }
   }, [mode]);
 
   useEffect(() => {
     const key = `video_switching_${mode}`;
-    localStorage.setItem(key, JSON.stringify({ completed, current }));
-  }, [mode, completed, current]);
+    localStorage.setItem(key, JSON.stringify({ completed, current, playbackPositions }));
+  }, [mode, completed, current, playbackPositions]);
 
   const markCompleted = (id: string) => {
     setCompleted((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
-  return { completed, current, setCurrent, markCompleted };
+  const updatePlaybackPosition = (id: string, time: number) => {
+    setPlaybackPositions((prev) => ({ ...prev, [id]: time }));
+  };
+
+  const getPlaybackPosition = (id: string): number => {
+    return playbackPositions[id] ?? 0;
+  };
+
+  return { completed, current, setCurrent, markCompleted, updatePlaybackPosition, getPlaybackPosition };
 }
 
 // Admin Page Component
@@ -179,7 +189,7 @@ const App: React.FC = () => {
 
 // Player Page Component (the current main App content)
 const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode, onBackToAdmin }) => {
-  const { completed, current, setCurrent, markCompleted } = useSession(mode);
+  const { completed, current, setCurrent, markCompleted, updatePlaybackPosition, getPlaybackPosition } = useSession(mode);
 
   const videos = useMemo<Video[]>(() => MOCK_VIDEOS, []);
   const currentVideo = useMemo(
@@ -217,27 +227,31 @@ const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode,
         </button>
       </header>
 
-      <main style={{ marginTop: 16, display: "flex", gap: 48, alignItems: "flex-start" }}>
-        {/* Left side - Player */}
-        <div style={{ flex: "1 1 auto", minWidth: 0, maxWidth: "100%" }}>
+      <main style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 32 }}>
+        {/* Player */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
           <Player
             mode={mode}
             video={currentVideo}
             onEnded={() => {
               if (currentVideo) {
                 markCompleted(currentVideo.id);
+                // Clear the saved position since video is completed
+                updatePlaybackPosition(currentVideo.id, 0);
                 // In non-switching, clear current so the child must choose the next one
                 // In switching mode, also clear (so next pick is explicit)
                 setCurrent(null);
               }
             }}
+            updatePlaybackPosition={updatePlaybackPosition}
+            getPlaybackPosition={getPlaybackPosition}
           />
         </div>
 
-        {/* Right side - Video selection */}
-        <div style={{ flex: "0 0 200px", display: "flex", flexDirection: "column", minWidth: 200, flexShrink: 0 }}>
+        {/* Bottom - Video selection */}
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <h2 style={{ marginTop: 0, marginBottom: 16 }}>Pick a video</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             {videos.map((v) => {
               const isCompleted = completed.includes(v.id);
               const isCurrent = current === v.id;
@@ -258,7 +272,8 @@ const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode,
                     padding: 8,
                     background: disabled ? "#f4f4f4" : "#fff",
                     opacity: disabled ? 0.6 : 1,
-                    cursor: disabled ? "not-allowed" : "pointer"
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    width: 200
                   }}
                 >
                   <img src={v.thumbnail} alt="" style={{ width: "100%", borderRadius: 8 }} />
@@ -280,24 +295,27 @@ const Player: React.FC<{
   mode: Mode;
   video: Video | null;
   onEnded: () => void;
-}> = ({ mode, video, onEnded }) => {
+  updatePlaybackPosition: (id: string, time: number) => void;
+  getPlaybackPosition: (id: string) => number;
+}> = ({ mode, video, onEnded, updatePlaybackPosition, getPlaybackPosition }) => {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
 
   useEffect(() => {
     setIsPlaying(false);
-    if (ref.current) {
-      ref.current.currentTime = 0;
+    if (ref.current && video) {
+      // Restore playback position
+      const savedPosition = getPlaybackPosition(video.id);
+      ref.current.currentTime = savedPosition;
+
       // Auto-play when a new video is selected
-      if (video) {
-        ref.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch(() => {
-          // Auto-play might be blocked by browser, handle silently
-          setIsPlaying(false);
-        });
-      }
+      ref.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(() => {
+        // Auto-play might be blocked by browser, handle silently
+        setIsPlaying(false);
+      });
     }
   }, [video?.id]);
 
@@ -313,11 +331,15 @@ const Player: React.FC<{
     }
   };
 
-  // Track “last safe time”
+  // Track "last safe time"
   const [previousTime, setPreviousTime] = useState(0);
   const handleTimeUpdate = () => {
-    if (!ref.current) return;
+    if (!ref.current || !video) return;
     const t = ref.current.currentTime;
+
+    // Save playback position
+    updatePlaybackPosition(video.id, t);
+
     // In non-switching, only allow increasing naturally
     if (mode === "non-switching") {
       // accept natural progression
@@ -363,43 +385,73 @@ const Player: React.FC<{
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           controls={showNativeControls}
-          controlsList={showNativeControls ? "nodownload" : "nodownload noplaybackrate"}
+          controlsList="nodownload noplaybackrate"
           style={{ width: "1000px", height: "540px", objectFit: "cover" }}
           playsInline
         />
         {!showNativeControls && isHovering && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              pointerEvents: "none"
-            }}
-          >
-            {/* Minimal custom controls: play/pause toggle */}
-            <div style={{ pointerEvents: "auto", display: "flex", gap: 12 }}>
+          <>
+            {/* Play/Pause button in center */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none"
+              }}
+            >
+              <div style={{ pointerEvents: "auto" }}>
+                <button
+                  onClick={() => {
+                    const el = ref.current;
+                    if (!el) return;
+
+                    if (isPlaying) {
+                      el.pause();
+                      setIsPlaying(false);
+                    } else {
+                      el.play();
+                      setIsPlaying(true);
+                    }
+                  }}
+                  aria-label={isPlaying ? "Pause" : "Play"}
+                  style={ btnStyle }
+                >
+                  {isPlaying ? "❚❚" : "▶︎"}
+                </button>
+              </div>
+            </div>
+            {/* Fullscreen button in bottom-right corner */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 16,
+                right: 16,
+                pointerEvents: "auto"
+              }}
+            >
               <button
                 onClick={() => {
                   const el = ref.current;
                   if (!el) return;
-                  
-                  if (isPlaying) {
-                    el.pause();
-                    setIsPlaying(false);
+
+                  if (!document.fullscreenElement) {
+                    el.requestFullscreen().catch((err) => {
+                      console.error("Error attempting to enable fullscreen:", err);
+                    });
                   } else {
-                    el.play();
-                    setIsPlaying(true);
+                    document.exitFullscreen();
                   }
                 }}
-                aria-label={isPlaying ? "Pause" : "Play"}
+                aria-label="Fullscreen"
                 style={ btnStyle }
               >
-                {isPlaying ? "❚❚" : "▶︎"}
+                ⛶
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
       <div style={{ marginTop: 8, fontWeight: 600 }}>{video.title}</div>
