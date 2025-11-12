@@ -1,9 +1,16 @@
 // App.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import './App.css'
+import { trackingService } from './services/trackingService';
 
 type Mode = "non-switching" | "switching";
-type Page = "admin" | "player";
+type Page = "login" | "admin" | "player" | "researcher";
+
+interface User {
+  id: string;
+  participantId: string;
+  condition: Mode;
+}
 
 type Video = {
   id: string;
@@ -58,21 +65,167 @@ function useSession(mode: Mode) {
   return { completed, current, setCurrent, markCompleted, updatePlaybackPosition, getPlaybackPosition };
 }
 
-// Admin Page Component
-const AdminPage: React.FC<{ onStart: (mode: Mode) => void }> = ({ onStart }) => {
-  const [selectedMode, setSelectedMode] = useState<Mode>("non-switching");
+// Login Page Component
+const LoginPage: React.FC<{ onLogin: (user: User) => void; onResearcherMode: () => void }> = ({ onLogin, onResearcherMode }) => {
+  const [participantId, setParticipantId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const { token, user } = await trackingService.login(participantId);
+      console.log("Logged in:", user);
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your Participant ID.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div style={{ 
-      maxWidth: 600, 
-      margin: "0 auto", 
+    <div style={{
+      maxWidth: 500,
+      margin: "100px auto",
+      fontFamily: "system-ui",
+      padding: 20
+    }}>
+      <h1 style={{ textAlign: "center", marginBottom: 32 }}>Video Watching Study</h1>
+
+      <div style={{
+        background: "#f9f9f9",
+        padding: 32,
+        borderRadius: 16,
+        border: "1px solid #ddd"
+      }}>
+        <h2 style={{ marginTop: 0, marginBottom: 8 }}>Welcome</h2>
+        <p style={{ color: "#666", marginBottom: 24 }}>
+          Please enter your Participant ID to begin the study.
+        </p>
+
+        <form onSubmit={handleLogin}>
+          <input
+            type="text"
+            placeholder="Participant ID (e.g., P001)"
+            value={participantId}
+            onChange={(e) => setParticipantId(e.target.value.toUpperCase())}
+            style={{
+              width: "100%",
+              padding: 12,
+              fontSize: 16,
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              marginBottom: 16,
+              boxSizing: "border-box"
+            }}
+            disabled={loading}
+            required
+          />
+
+          {error && (
+            <div style={{
+              padding: 12,
+              background: "#fee",
+              color: "#c00",
+              borderRadius: 8,
+              marginBottom: 16,
+              fontSize: 14
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !participantId}
+            style={{
+              width: "100%",
+              padding: 16,
+              fontSize: 18,
+              fontWeight: 600,
+              background: loading ? "#ccc" : "#007AFF",
+              color: "white",
+              border: "none",
+              borderRadius: 12,
+              cursor: loading || !participantId ? "not-allowed" : "pointer"
+            }}
+          >
+            {loading ? "Logging in..." : "Start Study"}
+          </button>
+        </form>
+
+        <p style={{
+          marginTop: 24,
+          fontSize: 12,
+          color: "#999",
+          textAlign: "center"
+        }}>
+          If you don't have a Participant ID, please contact the researcher.
+        </p>
+      </div>
+
+      <button
+        onClick={onResearcherMode}
+        style={{
+          width: "100%",
+          padding: 12,
+          fontSize: 14,
+          fontWeight: 600,
+          background: "#6c757d",
+          color: "white",
+          border: "none",
+          borderRadius: 12,
+          cursor: "pointer",
+          marginTop: 16
+        }}
+      >
+        Researcher Dashboard
+      </button>
+    </div>
+  );
+};
+
+// Admin Page Component
+const AdminPage: React.FC<{ onStart: (mode: Mode) => void; user: User; onLogout: () => void }> = ({ onStart, user, onLogout }) => {
+  const [selectedMode, setSelectedMode] = useState<Mode>(user.condition);
+
+  return (
+    <div style={{
+      maxWidth: 600,
+      margin: "0 auto",
       fontFamily: "system-ui",
       display: "flex",
       flexDirection: "column",
       justifyContent: "center"
     }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <div>
+          <div style={{ fontSize: 14, color: "#666" }}>Participant ID: {user.participantId}</div>
+          <div style={{ fontSize: 14, color: "#666" }}>Condition: {user.condition}</div>
+        </div>
+        <button
+          onClick={onLogout}
+          style={{
+            padding: "8px 16px",
+            fontSize: 14,
+            borderRadius: 8,
+            border: "none",
+            background: "#dc3545",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600
+          }}
+        >
+          Logout
+        </button>
+      </div>
+
       <h1 style={{ textAlign: "center", marginBottom: 32 }}>Setting Page</h1>
-      
+
       <div style={{ 
         background: "#f9f9f9", 
         padding: 32, 
@@ -156,17 +309,231 @@ const AdminPage: React.FC<{ onStart: (mode: Mode) => void }> = ({ onStart }) => 
   );
 };
 
-const App: React.FC = () => {
-  const [page, setPage] = useState<Page>("admin");
-  const [mode, setMode] = useState<Mode>("non-switching");
+// Researcher Page Component
+const ResearcherPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Load mode from localStorage on mount
-  useEffect(() => {
-    const savedMode = localStorage.getItem("video_player_mode");
-    if (savedMode === "non-switching" || savedMode === "switching") {
-      setMode(savedMode);
+  const fetchParticipants = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/all`);
+      if (!response.ok) throw new Error("Failed to fetch participants");
+      const data = await response.json();
+      setParticipants(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load participants");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchParticipants();
   }, []);
+
+  const handleExportCSV = async (type: 'events' | 'sessions' | 'participants') => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/analytics/export?type=${type}`);
+      if (!response.ok) throw new Error("Export failed");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}_export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Export failed: ${err.message}`);
+    }
+  };
+
+  return (
+    <div style={{
+      maxWidth: 1200,
+      margin: "40px auto",
+      fontFamily: "system-ui",
+      padding: 20
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+        <h1 style={{ margin: 0 }}>Researcher Dashboard</h1>
+        <button
+          onClick={onBack}
+          style={{
+            padding: "8px 16px",
+            fontSize: 14,
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "white",
+            cursor: "pointer"
+          }}
+        >
+          Back to Login
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+        <button
+          onClick={() => handleExportCSV('events')}
+          style={{
+            padding: "12px 24px",
+            fontSize: 14,
+            fontWeight: 600,
+            background: "#007AFF",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer"
+          }}
+        >
+          Export Events
+        </button>
+        <button
+          onClick={() => handleExportCSV('sessions')}
+          style={{
+            padding: "12px 24px",
+            fontSize: 14,
+            fontWeight: 600,
+            background: "#28a745",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer"
+          }}
+        >
+          Export Sessions
+        </button>
+        <button
+          onClick={() => handleExportCSV('participants')}
+          style={{
+            padding: "12px 24px",
+            fontSize: 14,
+            fontWeight: 600,
+            background: "#ffc107",
+            color: "#000",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer"
+          }}
+        >
+          Export Participants
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 40 }}>Loading participants...</div>
+      ) : error ? (
+        <div style={{
+          padding: 16,
+          background: "#fee",
+          color: "#c00",
+          borderRadius: 8
+        }}>
+          {error}
+        </div>
+      ) : (
+        <div style={{
+          background: "white",
+          borderRadius: 12,
+          border: "1px solid #ddd",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: 16,
+            borderBottom: "1px solid #ddd",
+            background: "#f9f9f9"
+          }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Participants ({participants.length})</h2>
+            <button
+              onClick={fetchParticipants}
+              style={{
+                padding: "6px 12px",
+                fontSize: 12,
+                borderRadius: 6,
+                border: "1px solid #ddd",
+                background: "white",
+                cursor: "pointer"
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f9f9f9", borderBottom: "1px solid #ddd" }}>
+                <th style={{ padding: 12, textAlign: "left" }}>Participant ID</th>
+                <th style={{ padding: 12, textAlign: "left" }}>Condition</th>
+                <th style={{ padding: 12, textAlign: "left" }}>Sessions</th>
+                <th style={{ padding: 12, textAlign: "left" }}>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map((p) => (
+                <tr key={p.id} style={{ borderBottom: "1px solid #eee" }}>
+                  <td style={{ padding: 12, fontWeight: 600 }}>{p.participantId}</td>
+                  <td style={{ padding: 12 }}>
+                    <span style={{
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: p.condition === "switching" ? "#E3F2FF" : "#FFF8DC",
+                      color: p.condition === "switching" ? "#007AFF" : "#856404"
+                    }}>
+                      {p.condition === "switching" ? "Switching" : "Non-Switching"}
+                    </span>
+                  </td>
+                  <td style={{ padding: 12 }}>{p._count?.sessions || 0}</td>
+                  <td style={{ padding: 12, color: "#666" }}>
+                    {new Date(p.createdAt).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  const [page, setPage] = useState<Page>("login");
+  const [mode, setMode] = useState<Mode>("non-switching");
+  const [user, setUser] = useState<User | null>(null);
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = trackingService.getToken();
+      if (token) {
+        try {
+          const currentUser = await trackingService.getCurrentUser();
+          setUser(currentUser);
+          setMode(currentUser.condition);
+          setPage("admin");
+        } catch (error) {
+          // Token invalid, stay on login
+          trackingService.clearToken();
+        }
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    setMode(loggedInUser.condition);
+    setPage("admin");
+  };
 
   const handleStartPlayer = (selectedMode: Mode) => {
     setMode(selectedMode);
@@ -178,18 +545,44 @@ const App: React.FC = () => {
     setPage("admin");
   };
 
+  const handleLogout = () => {
+    trackingService.clearToken();
+    setUser(null);
+    setPage("login");
+  };
+
+  const handleResearcherMode = () => {
+    setPage("researcher");
+  };
+
+  const handleBackToLogin = () => {
+    setPage("login");
+  };
+
+  // Show researcher page
+  if (page === "researcher") {
+    return <ResearcherPage onBack={handleBackToLogin} />;
+  }
+
+  // Show login page
+  if (page === "login" || !user) {
+    return <LoginPage onLogin={handleLogin} onResearcherMode={handleResearcherMode} />;
+  }
+
   // Show admin page
   if (page === "admin") {
-    return <AdminPage onStart={handleStartPlayer} />;
+    return <AdminPage onStart={handleStartPlayer} user={user} onLogout={handleLogout} />;
   }
 
   // Show player page
-  return <PlayerPage mode={mode} onBackToAdmin={handleBackToAdmin} />;
+  return <PlayerPage mode={mode} onBackToAdmin={handleBackToAdmin} user={user} onLogout={handleLogout} />;
 };
 
 // Player Page Component (the current main App content)
-const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode, onBackToAdmin }) => {
+const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void; user: User; onLogout: () => void }> = ({ mode, onBackToAdmin, user, onLogout }) => {
   const { completed, current, setCurrent, markCompleted, updatePlaybackPosition, getPlaybackPosition } = useSession(mode);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
 
   const videos = useMemo<Video[]>(() => MOCK_VIDEOS, []);
   const currentVideo = useMemo(
@@ -197,34 +590,76 @@ const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode,
     [videos, current]
   );
 
-  const handleSelectVideo = (id: string) => {
+  const handleSelectVideo = async (id: string) => {
     // Block clicking other videos in non-switching mode while something is playing
     if (mode === "non-switching" && current && current !== id) return;
 
     if (completed.includes(id)) return; // never allow rewatch
-    setCurrent(id);
+
+    const previousVideo = current;
+
+    // Start new session for the selected video
+    try {
+      const sessionId = await trackingService.startSession(id);
+      setCurrentSessionId(sessionId);
+
+      // Track switch event if switching from another video
+      if (previousVideo && previousVideo !== id && mode === "switching") {
+        trackingService.trackSwitch(
+          sessionId,
+          previousVideo,
+          id,
+          getPlaybackPosition(previousVideo)
+        );
+      }
+
+      setCurrent(id);
+    } catch (error) {
+      console.error("Failed to start session:", error);
+      // Still allow video to play even if tracking fails
+      setCurrent(id);
+    }
   };
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto", marginRight:-40, fontFamily: "system-ui" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ margin: 0}}>Video Player - {mode === "non-switching" ? "Non-Switching" : "Switching"} Mode</h1>
-        <button
-          onClick={onBackToAdmin}
-          style={{
-            padding: "8px 16px",
-            fontSize: 12,
-            fontWeight: 600,
-            background: "#424242ff",
-            color: "#aaaaaaff",
-            border: "1px solid #666666ff",
-            borderRadius: 8,
-            cursor: "pointer",
-            marginLeft: 15
-          }}
-        >
-          Settings
-        </button>
+        <div>
+          <h1 style={{ margin: 0}}>Video Player - {mode === "non-switching" ? "Non-Switching" : "Switching"} Mode</h1>
+          <div style={{ fontSize: 14, color: "#666", marginTop: 4 }}>Participant: {user.participantId}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={onBackToAdmin}
+            style={{
+              padding: "8px 16px",
+              fontSize: 12,
+              fontWeight: 600,
+              background: "#424242ff",
+              color: "#aaaaaaff",
+              border: "1px solid #666666ff",
+              borderRadius: 8,
+              cursor: "pointer"
+            }}
+          >
+            Settings
+          </button>
+          <button
+            onClick={onLogout}
+            style={{
+              padding: "8px 16px",
+              fontSize: 12,
+              fontWeight: 600,
+              background: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              cursor: "pointer"
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <main style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 32 }}>
@@ -233,14 +668,45 @@ const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode,
           <Player
             mode={mode}
             video={currentVideo}
+            sessionId={currentSessionId}
             onEnded={() => {
-              if (currentVideo) {
+              if (currentVideo && currentSessionId) {
+                // Track completion
+                trackingService.trackComplete(
+                  currentSessionId,
+                  getPlaybackPosition(currentVideo.id)
+                );
+
+                // Complete the session
+                trackingService.completeSession(currentSessionId).catch(console.error);
+
                 markCompleted(currentVideo.id);
                 // Clear the saved position since video is completed
                 updatePlaybackPosition(currentVideo.id, 0);
                 // In non-switching, clear current so the child must choose the next one
                 // In switching mode, also clear (so next pick is explicit)
                 setCurrent(null);
+                setCurrentSessionId(null);
+              }
+            }}
+            onPlay={(position) => {
+              if (currentSessionId) {
+                trackingService.trackPlay(currentSessionId, position);
+                if (pauseStartTime !== null) {
+                  setPauseStartTime(null);
+                }
+              }
+            }}
+            onPause={(position) => {
+              if (currentSessionId) {
+                setPauseStartTime(Date.now());
+              }
+            }}
+            onPauseEnd={(position) => {
+              if (currentSessionId && pauseStartTime) {
+                const pauseDuration = (Date.now() - pauseStartTime) / 1000; // Convert to seconds
+                trackingService.trackPause(currentSessionId, pauseDuration, position);
+                setPauseStartTime(null);
               }
             }}
             updatePlaybackPosition={updatePlaybackPosition}
@@ -294,13 +760,18 @@ const PlayerPage: React.FC<{ mode: Mode; onBackToAdmin: () => void }> = ({ mode,
 const Player: React.FC<{
   mode: Mode;
   video: Video | null;
+  sessionId: string | null;
   onEnded: () => void;
+  onPlay?: (position: number) => void;
+  onPause?: (position: number) => void;
+  onPauseEnd?: (position: number) => void;
   updatePlaybackPosition: (id: string, time: number) => void;
   getPlaybackPosition: (id: string) => number;
-}> = ({ mode, video, onEnded, updatePlaybackPosition, getPlaybackPosition }) => {
+}> = ({ mode, video, sessionId, onEnded, onPlay, onPause, onPauseEnd, updatePlaybackPosition, getPlaybackPosition }) => {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [wasPaused, setWasPaused] = useState(false);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -382,8 +853,24 @@ const Player: React.FC<{
           onEnded={onEnded}
           onSeeking={handleSeeking}
           onTimeUpdate={handleTimeUpdate}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
+          onPlay={() => {
+            setIsPlaying(true);
+            if (ref.current && onPlay) {
+              onPlay(ref.current.currentTime);
+              // If resuming from pause, track pause end
+              if (wasPaused && onPauseEnd) {
+                onPauseEnd(ref.current.currentTime);
+                setWasPaused(false);
+              }
+            }
+          }}
+          onPause={() => {
+            setIsPlaying(false);
+            if (ref.current && onPause) {
+              onPause(ref.current.currentTime);
+              setWasPaused(true);
+            }
+          }}
           controls={showNativeControls}
           controlsList="nodownload noplaybackrate"
           style={{ width: "1000px", height: "540px", objectFit: "cover" }}

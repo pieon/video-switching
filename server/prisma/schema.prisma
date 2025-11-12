@@ -1,0 +1,60 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserCondition {
+  switching
+  non_switching
+}
+
+enum EventType {
+  play
+  pause
+  switch
+  complete
+}
+
+model User {
+  id            String         @id @default(uuid())
+  participantId String         @unique
+  condition     UserCondition
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      VideoSession[]
+
+  @@map("users")
+}
+
+model VideoSession {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId     String
+  mode        UserCondition
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
+  events      VideoEvent[]
+
+  @@map("video_sessions")
+}
+
+model VideoEvent {
+  id        String    @id @default(uuid())
+  sessionId String
+  session   VideoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventType EventType
+  timestamp DateTime  @default(now())
+  duration  Float?    // Duration in seconds (for pause events)
+  fromVideoId String? // For switch events
+  toVideoId   String? // For switch events
+  playbackPosition Float? // Position in video when event occurred
+
+  @@map("video_events")
+}
