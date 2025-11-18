@@ -321,8 +321,9 @@ const ResearcherPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/users/all`);
       if (!response.ok) throw new Error("Failed to fetch participants");
-      const data = await response.json();
-      setParticipants(data);
+      const result = await response.json();
+      // Backend returns { success: true, data: { users: [...], count: N } }
+      setParticipants(result.data?.users || []);
     } catch (err: any) {
       setError(err.message || "Failed to load participants");
     } finally {
