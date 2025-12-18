@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database...\n');
+  console.log('Seeding database...\n');
 
   // Create test participants
   const participants = [
@@ -18,15 +18,15 @@ async function main() {
       update: {},
       create: participant,
     });
-    console.log(`✅ Created participant: ${user.participantId} (${user.condition})`);
+    console.log(`Created participant: ${user.participantId} (${user.condition})`);
   }
 
-  console.log('\n✨ Seeding completed!\n');
+  console.log('\nSeeding completed!\n');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+    console.error('Seeding failed:', e);
     process.exit(1);
   })
   .finally(async () => {

@@ -1,6 +1,7 @@
 // Tracking service for video event logging
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Get API URL from environment (Vite uses import.meta.env)
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface TrackingEvent {
   sessionId: string;
@@ -20,16 +21,19 @@ class TrackingService {
   private readonly MAX_QUEUE_SIZE = 50;
 
   constructor() {
-    // Load token from localStorage
-    this.token = localStorage.getItem('authToken');
+    // Only access browser APIs if in browser environment
+    if (typeof window !== 'undefined') {
+      // Load token from localStorage
+      this.token = localStorage.getItem('authToken');
 
-    // Start auto-flush
-    this.startAutoFlush();
+      // Start auto-flush
+      this.startAutoFlush();
 
-    // Flush on page unload
-    window.addEventListener('beforeunload', () => {
-      this.flush();
-    });
+      // Flush on page unload
+      window.addEventListener('beforeunload', () => {
+        this.flush();
+      });
+    }
   }
 
   /**
@@ -37,7 +41,9 @@ class TrackingService {
    */
   setToken(token: string) {
     this.token = token;
-    localStorage.setItem('authToken', token);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('authToken', token);
+    }
   }
 
   /**
@@ -52,7 +58,9 @@ class TrackingService {
    */
   clearToken() {
     this.token = null;
-    localStorage.removeItem('authToken');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('authToken');
+    }
   }
 
   /**
@@ -245,9 +253,11 @@ class TrackingService {
    * Start auto-flushing events
    */
   private startAutoFlush() {
-    this.flushInterval = window.setInterval(() => {
-      this.flush();
-    }, this.FLUSH_INTERVAL_MS);
+    if (typeof window !== 'undefined') {
+      this.flushInterval = window.setInterval(() => {
+        this.flush();
+      }, this.FLUSH_INTERVAL_MS);
+    }
   }
 
   /**
