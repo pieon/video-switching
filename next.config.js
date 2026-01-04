@@ -3,8 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   // swcMinify is now enabled by default in Next.js 16+
 
-  // Enable static export
-  output: 'export',
+  // Uncomment for static export deployment
+  // output: 'export',
 
   // Environment variables available on client side
   env: {
