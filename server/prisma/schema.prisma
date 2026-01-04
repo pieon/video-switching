@@ -5,26 +5,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum UserCondition {
-  switching
-  non_switching
-}
-
-enum EventType {
-  play
-  pause
-  switch
-  complete
-}
+// SQLite doesn't support enums, so we use String with comments
+// Valid values for condition: "switching" | "non_switching"
+// Valid values for eventType: "play" | "pause" | "switch" | "complete"
 
 model User {
   id            String         @id @default(uuid())
   participantId String         @unique
-  condition     UserCondition
+  condition     String         // "switching" or "non_switching"
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   sessions      VideoSession[]
@@ -37,7 +29,7 @@ model VideoSession {
   userId      String
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   videoId     String
-  mode        UserCondition
+  mode        String        // "switching" or "non_switching"
   startedAt   DateTime      @default(now())
   completedAt DateTime?
   events      VideoEvent[]
@@ -49,7 +41,7 @@ model VideoEvent {
   id        String    @id @default(uuid())
   sessionId String
   session   VideoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  eventType EventType
+  eventType String    // "play" | "pause" | "switch" | "complete"
   timestamp DateTime  @default(now())
   duration  Float?    // Duration in seconds (for pause events)
   fromVideoId String? // For switch events
