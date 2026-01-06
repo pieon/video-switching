@@ -10,6 +10,11 @@ export default function ResearcherPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newParticipantId, setNewParticipantId] = useState('');
+  const [newCondition, setNewCondition] = useState<'switching' | 'non_switching'>('switching');
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -31,6 +36,48 @@ export default function ResearcherPage() {
   useEffect(() => {
     fetchParticipants();
   }, []);
+
+  const handleCreateParticipant = async () => {
+    setCreateError('');
+    setCreateSuccess('');
+
+    if (!newParticipantId.trim()) {
+      setCreateError('Participant ID is required');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/users/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          participantId: newParticipantId.trim(),
+          condition: newCondition,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create participant');
+      }
+
+      setCreateSuccess(`Participant ${newParticipantId} created successfully!`);
+      setNewParticipantId('');
+      setNewCondition('switching');
+      fetchParticipants();
+
+      // Close form after 2 seconds
+      setTimeout(() => {
+        setShowCreateForm(false);
+        setCreateSuccess('');
+      }, 2000);
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to create participant');
+    }
+  };
 
   const handleExportCSV = async (
     type: 'events' | 'sessions' | 'participants'
@@ -60,6 +107,99 @@ export default function ResearcherPage() {
         onBackClick={() => router.push('/')}
         backButtonText="Back to Login"
       />
+
+      <div style={{ marginBottom: 24 }}>
+        <Button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          variant="primary"
+          size="medium"
+          style={{ marginBottom: 16 }}
+        >
+          {showCreateForm ? 'Cancel' : '+ Create New Participant'}
+        </Button>
+
+        {showCreateForm && (
+          <div
+            style={{
+              background: 'white',
+              padding: 20,
+              borderRadius: 8,
+              border: '1px solid #ddd',
+              marginBottom: 16,
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+              Create New Participant
+            </h3>
+
+            {createError && <Alert variant="error">{createError}</Alert>}
+            {createSuccess && <Alert variant="success">{createSuccess}</Alert>}
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Participant ID:
+              </label>
+              <input
+                type="text"
+                value={newParticipantId}
+                onChange={(e) => setNewParticipantId(e.target.value)}
+                placeholder="Enter participant ID (e.g., P001)"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: 16,
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Condition:
+              </label>
+              <select
+                value={newCondition}
+                onChange={(e) =>
+                  setNewCondition(e.target.value as 'switching' | 'non_switching')
+                }
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: 16,
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="switching">Switching</option>
+                <option value="non_switching">Non-Switching</option>
+              </select>
+            </div>
+
+            <Button
+              onClick={handleCreateParticipant}
+              variant="primary"
+              size="medium"
+            >
+              Create Participant
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
         <Button

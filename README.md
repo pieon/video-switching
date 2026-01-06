@@ -2,7 +2,57 @@
 
 A Next.js application for conducting video-watching behavior research with two experimental conditions.
 
-## 🚀 Quick Start
+## Start Deployed Website
+
+To Access Your Website
+Open a web browser (on any computer) and go to:
+
+http://codes.cs.vt.edu
+That's it! If the SELinux fix worked, your website should load.
+If It's Still Not Working
+Make sure you've applied the SELinux fix first:
+
+### Run this on your VM
+sudo setsebool -P httpd_can_network_connect 1
+sudo systemctl restart nginx
+Then try accessing http://codes.cs.vt.edu again.
+Full Startup Procedure (For Future Reference)
+If you need to start everything from scratch (after a reboot, for example):
+
+### 1. Start Backend Server
+screen
+cd /path/to/video-switching/server
+npm start
+#### Wait for "Server running on http://localhost:5001"
+ctrl+a ctrl+d  # Detach from screen
+
+### 2. Start Frontend Server
+screen
+cd /path/to/video-switching
+npm start
+#### Wait for "Ready on http://localhost:3000"
+ctrl+a ctrl+d  # Detach from screen
+
+### 3. Ensure Nginx is Running
+sudo systemctl start nginx
+sudo systemctl status nginx
+
+### 4. Access in Browser
+http://codes.cs.vt.edu
+Current Status Check
+Run this to see what's currently running:
+
+#### Check services
+sudo netstat -tlnp | grep -E '3000|5001'
+
+#### Check nginx
+sudo systemctl status nginx
+
+#### Check screens
+screen -ls
+Everything looks good based on your previous output, so just open your browser and navigate to http://codes.cs.vt.edu - it should work now! Does the website load when you visit that URL?
+
+## 🚀 Quick Test Start
 
 ### 1. Start Backend
 ```bash
