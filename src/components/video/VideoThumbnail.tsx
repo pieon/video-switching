@@ -35,10 +35,14 @@ export function VideoThumbnail({
       aria-disabled={disabled}
       style={buttonStyle}
     >
-      <img
-        src={video.thumbnail}
-        alt={video.title}
+      <video
+        src={video.url}
         style={{ width: "100%", borderRadius: 8 }}
+        muted
+        preload="metadata"
+        onLoadedMetadata={(e) => {
+          e.currentTarget.currentTime = 0;
+        }}
       />
       <div style={{ marginTop: 8, fontWeight: 600 }}>
         {video.title} {isCompleted ? "✓" : ""}
