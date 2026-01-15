@@ -24,7 +24,7 @@ export default function CalibratePage() {
   const { isReady } = useWebGazer({ saveGazeData: false });
 
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
-  const [clicksRemaining, setClicksRemaining] = useState(9); // 9 clicks per point
+  const [clicksRemaining, setClicksRemaining] = useState(5); // 5 clicks per point
   const [completedPoints, setCompletedPoints] = useState<number[]>([]);
   const [clickCounts, setClickCounts] = useState<{ [key: number]: number }>({});
   const [isCalibrating, setIsCalibrating] = useState(false);
@@ -35,7 +35,7 @@ export default function CalibratePage() {
   const [isMeasuringAccuracy, setIsMeasuringAccuracy] = useState(false);
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
 
-  const CLICKS_PER_POINT = 9; // Increased for better accuracy
+  const CLICKS_PER_POINT = 5;
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -318,8 +318,8 @@ export default function CalibratePage() {
             const isCompleted = completedPoints.includes(point.id);
             const clicks = clickCounts[point.id] || 0;
 
-            // Calculate opacity based on clicks (0.2 base + 0.1 per click, up to 1.0)
-            const clickOpacity = isActive ? Math.min(0.2 + (clicks * 0.1), 1.0) : 1.0;
+            // Calculate opacity based on clicks (0.2 base + 0.16 per click, up to 1.0)
+            const clickOpacity = isActive ? Math.min(0.2 + (clicks * 0.16), 1.0) : 1.0;
 
             return (
               <button
