@@ -55,8 +55,20 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false }: UseWebGazerO
         webgazer.showPredictionPoints(true);
         webgazer.applyKalmanFilter(true);
 
+        // Set higher video resolution for better accuracy
+        webgazer.setCameraConstraints({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          }
+        });
+
         // Initialize WebGazer (this starts the camera but not tracking yet)
         await webgazer.begin();
+
+        // Set internal buffer sizes to match HD resolution
+        webgazer.setInternalVideoBufferSizes(1280, 720);
 
         // Pause immediately to prevent processing before video is ready
         webgazer.pause();
