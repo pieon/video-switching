@@ -67,9 +67,6 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false }: UseWebGazerO
         // Initialize WebGazer (this starts the camera but not tracking yet)
         await webgazer.begin();
 
-        // Set internal buffer sizes to match HD resolution
-        webgazer.setInternalVideoBufferSizes(1280, 720);
-
         // Pause immediately to prevent processing before video is ready
         webgazer.pause();
 
