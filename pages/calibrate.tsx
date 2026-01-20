@@ -38,6 +38,7 @@ export default function CalibratePage() {
   const [isClickEnabled, setIsClickEnabled] = useState(false);
   const dwellTimerRef = useRef<NodeJS.Timeout | null>(null);
   const dwellStartRef = useRef<number | null>(null);
+  const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
 
   const CLICKS_PER_POINT = 5;
   const DWELL_TIME_MS = 500; // Time user must hover before click is enabled
@@ -165,36 +166,58 @@ export default function CalibratePage() {
 
   const measureAccuracy = async () => {
     setIsMeasuringAccuracy(true);
+    gazeCollectionRef.current = []; // Reset collection
 
-    // Wait 5 seconds while collecting gaze predictions
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    // Get screen center (target location)
+    const screenCenterX = window.innerWidth / 2;
+    const screenCenterY = window.innerHeight / 2;
 
-    let calculatedAccuracy = 65; // default
-
-    // Get stored points from WebGazer
+    // Set up gaze listener to collect predictions
     if (typeof window !== 'undefined' && (window as any).webgazer) {
       const webgazer = (window as any).webgazer;
-      const storedPoints = webgazer.getStoredPoints?.() || [];
 
-      if (storedPoints.length > 0) {
-        // Calculate precision based on variance of stored points
-        const xCoords = storedPoints.map((p: any) => p.x);
-        const yCoords = storedPoints.map((p: any) => p.y);
+      // Store original listener if any
+      const collectGaze = (data: any) => {
+        if (data && data.x && data.y) {
+          gazeCollectionRef.current.push({ x: data.x, y: data.y });
+        }
+      };
 
-        const xMean = xCoords.reduce((a: number, b: number) => a + b, 0) / xCoords.length;
-        const yMean = yCoords.reduce((a: number, b: number) => a + b, 0) / yCoords.length;
+      // Add gaze listener
+      webgazer.setGazeListener(collectGaze);
 
-        const distances = storedPoints.map((p: any) =>
-          Math.sqrt(Math.pow(p.x - xMean, 2) + Math.pow(p.y - yMean, 2))
-        );
+      // Wait 5 seconds while collecting gaze predictions
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-        const avgDistance = distances.reduce((a: number, b: number) => a + b, 0) / distances.length;
+      // Clear the listener
+      webgazer.setGazeListener(null);
+    } else {
+      // Fallback if webgazer not available
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
 
-        // Convert distance to accuracy percentage (lower distance = higher accuracy)
-        // Assuming 100px average distance = 50% accuracy, scale accordingly
-        const accuracy = Math.max(0, Math.min(100, 100 - (avgDistance / 2)));
-        calculatedAccuracy = Math.round(accuracy);
-      }
+    let calculatedAccuracy = 50; // default if no data
+
+    const collectedPoints = gazeCollectionRef.current;
+
+    if (collectedPoints.length > 0) {
+      // Calculate average distance from screen center (where the dot is)
+      const distances = collectedPoints.map((p) =>
+        Math.sqrt(Math.pow(p.x - screenCenterX, 2) + Math.pow(p.y - screenCenterY, 2))
+      );
+
+      const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+
+      // Convert distance to accuracy percentage
+      // 0px distance = 100% accuracy
+      // 200px distance = 0% accuracy (scales linearly)
+      const maxDistance = 200; // pixels - adjust based on your needs
+      const accuracy = Math.max(0, Math.min(100, 100 - (avgDistance / maxDistance) * 100));
+      calculatedAccuracy = Math.round(accuracy);
+
+      console.log(`Accuracy check: ${collectedPoints.length} points collected, avg distance: ${avgDistance.toFixed(1)}px, accuracy: ${calculatedAccuracy}%`);
+    } else {
+      console.warn('No gaze data collected during accuracy check');
     }
 
     setAccuracyPercentage(calculatedAccuracy);
