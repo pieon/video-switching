@@ -1,5 +1,5 @@
 // Eye tracking calibration page - Next.js
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Button, Card } from '@/components/ui';
@@ -34,14 +34,11 @@ export default function CalibratePage() {
   const [showAccuracyConfirm, setShowAccuracyConfirm] = useState(false);
   const [isMeasuringAccuracy, setIsMeasuringAccuracy] = useState(false);
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
-  const [dwellProgress, setDwellProgress] = useState(0); // 0-100 percentage
-  const [isClickEnabled, setIsClickEnabled] = useState(false);
-  const dwellTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const dwellStartRef = useRef<number | null>(null);
+  const lastClickTimeRef = useRef<number | null>(null);
   const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
 
   const CLICKS_PER_POINT = 5;
-  const DWELL_TIME_MS = 500; // Time user must hover before click is enabled
+  const CLICK_BUFFER_MS = 500; // Buffer between clicks to prevent accidental rapid taps
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -74,65 +71,22 @@ export default function CalibratePage() {
     setCompletedPoints([]);
     setClickCounts({});
     setAccuracyPercentage(null);
-    setDwellProgress(0);
-    setIsClickEnabled(false);
+    lastClickTimeRef.current = null;
   };
 
-  // Clear dwell timer on cleanup
-  useEffect(() => {
-    return () => {
-      if (dwellTimerRef.current) {
-        clearInterval(dwellTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handlePointMouseEnter = useCallback((index: number) => {
+  const handlePointClick = async (pointId: number, index: number) => {
     if (!isCalibrating || currentPointIndex !== index) return;
 
-    // Start dwell timer
-    dwellStartRef.current = Date.now();
-    setDwellProgress(0);
-    setIsClickEnabled(false);
-
-    dwellTimerRef.current = setInterval(() => {
-      if (dwellStartRef.current) {
-        const elapsed = Date.now() - dwellStartRef.current;
-        const progress = Math.min((elapsed / DWELL_TIME_MS) * 100, 100);
-        setDwellProgress(progress);
-
-        if (progress >= 100) {
-          setIsClickEnabled(true);
-          if (dwellTimerRef.current) {
-            clearInterval(dwellTimerRef.current);
-          }
-        }
-      }
-    }, 16); // ~60fps update
-  }, [isCalibrating, currentPointIndex, DWELL_TIME_MS]);
-
-  const handlePointMouseLeave = useCallback(() => {
-    // Clear dwell timer and reset progress
-    if (dwellTimerRef.current) {
-      clearInterval(dwellTimerRef.current);
-      dwellTimerRef.current = null;
+    // Check click buffer to prevent rapid taps
+    const now = Date.now();
+    if (lastClickTimeRef.current && now - lastClickTimeRef.current < CLICK_BUFFER_MS) {
+      return; // Too soon since last click
     }
-    dwellStartRef.current = null;
-    setDwellProgress(0);
-    setIsClickEnabled(false);
-  }, []);
-
-  const handlePointClick = async (pointId: number, index: number) => {
-    if (!isCalibrating || currentPointIndex !== index || !isClickEnabled) return;
+    lastClickTimeRef.current = now;
 
     // Track click count for visual feedback
     const currentClicks = (clickCounts[pointId] || 0) + 1;
     setClickCounts((prev) => ({ ...prev, [pointId]: currentClicks }));
-
-    // Reset dwell state for next click
-    setDwellProgress(0);
-    setIsClickEnabled(false);
-    dwellStartRef.current = null;
 
     // Decrement clicks for this point
     const newClicksRemaining = clicksRemaining - 1;
@@ -404,8 +358,6 @@ export default function CalibratePage() {
               <button
                 key={point.id}
                 onClick={() => handlePointClick(point.id, index)}
-                onMouseEnter={() => handlePointMouseEnter(index)}
-                onMouseLeave={handlePointMouseLeave}
                 disabled={!isActive}
                 style={{
                   position: 'absolute',
@@ -421,40 +373,18 @@ export default function CalibratePage() {
                     : isActive
                     ? '#2196F3'
                     : '#555',
-                  cursor: isActive ? (isClickEnabled ? 'pointer' : 'wait') : 'default',
+                  cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
                   opacity: isCompleted ? 0.4 : isActive ? clickOpacity : 0.2,
                   boxShadow: isActive
                     ? '0 0 30px rgba(33, 150, 243, 0.8), 0 0 60px rgba(33, 150, 243, 0.4)'
                     : 'none',
-                  animation: isActive && isClickEnabled ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                  animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
                   overflow: 'hidden',
                 }}
                 aria-label={`Calibration point ${point.id}`}
               >
-                {/* Dwell progress ring */}
-                {isActive && dwellProgress > 0 && dwellProgress < 100 && (
-                  <svg
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      transform: 'rotate(-90deg)',
-                    }}
-                  >
-                    <circle
-                      cx="50%"
-                      cy="50%"
-                      r="35%"
-                      fill="none"
-                      stroke="rgba(76, 175, 80, 0.8)"
-                      strokeWidth="8"
-                      strokeDasharray={`${dwellProgress * 2.2} 220`}
-                    />
-                  </svg>
-                )}
+                {/* Center dot */}
                 {isActive && (
                   <div
                     style={{
@@ -462,14 +392,11 @@ export default function CalibratePage() {
                       top: '50%',
                       left: '50%',
                       transform: 'translate(-50%, -50%)',
-                      width: isClickEnabled ? 20 : 16,
-                      height: isClickEnabled ? 20 : 16,
+                      width: 16,
+                      height: 16,
                       borderRadius: '50%',
-                      background: isClickEnabled ? '#4caf50' : 'white',
-                      boxShadow: isClickEnabled
-                        ? '0 0 15px rgba(76, 175, 80, 0.8)'
-                        : '0 0 10px rgba(255, 255, 255, 0.8)',
-                      transition: 'all 0.2s ease',
+                      background: 'white',
+                      boxShadow: '0 0 10px rgba(255, 255, 255, 0.8)',
                     }}
                   />
                 )}
