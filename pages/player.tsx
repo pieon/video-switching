@@ -39,7 +39,13 @@ export default function PlayerPage() {
     saveGazeData: true,
   });
 
-  const videos = useMemo(() => MOCK_VIDEOS, []);
+  const videos = useMemo(() => {
+    // Non-switching: videos 1-5, Switching: videos 6-10
+    if (mode === 'non-switching') {
+      return MOCK_VIDEOS.filter(v => ['1', '2', '3', '4', '5'].includes(v.id));
+    }
+    return MOCK_VIDEOS.filter(v => ['6', '7', '8', '9', '10'].includes(v.id));
+  }, [mode]);
   const currentVideo = useMemo(
     () => videos.find((v) => v.id === current) ?? null,
     [videos, current]
