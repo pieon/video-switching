@@ -20,8 +20,7 @@ export function VideoGrid({
 }: VideoGridProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <h2 style={{ marginTop: 0, marginBottom: 16 }}>Pick a video</h2>
-      <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap" }}>
         {videos.map((video) => {
           const isCompleted = completed.includes(video.id);
           const isCurrent = current === video.id;
