@@ -1,7 +1,7 @@
 // Video player page - Next.js
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { PageLayout, Header } from '@/components/layout';
+import { PageLayout, HamburgerMenu } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
 import { useSession } from '@/hooks/useSession';
@@ -151,39 +151,7 @@ export default function PlayerPage() {
 
   return (
     <PageLayout maxWidth={1400}>
-      <Header
-        title={`Video Player - ${
-          mode === 'non-switching' ? 'Non-Switching' : 'Switching'
-        } Mode`}
-        showUserInfo
-        showLogout
-        onBackClick={() => router.push('/admin')}
-        backButtonText="Settings"
-      >
-        {/* WebGazer Status Indicator */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '6px 12px',
-            borderRadius: 8,
-            background: isReady ? '#e8f5e9' : '#fff3e0',
-            border: `1px solid ${isReady ? '#4caf50' : '#ff9800'}`,
-            fontSize: 13,
-          }}
-        >
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: isReady ? '#4caf50' : '#ff9800',
-            }}
-          />
-          <span>Eye Tracking: {isReady ? 'Active' : 'Loading...'}</span>
-        </div>
-      </Header>
+      <HamburgerMenu />
 
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}

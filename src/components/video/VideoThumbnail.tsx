@@ -44,9 +44,9 @@ export function VideoThumbnail({
           e.currentTarget.currentTime = 0;
         }}
       />
-      <div style={{ marginTop: 8, fontWeight: 600 }}>
+      {/* <div style={{ marginTop: 8, fontWeight: 600 }}>
         {video.title} {isCompleted ? "✓" : ""}
-      </div>
+      </div> */}
       {isCurrent && <div style={{ fontSize: 12 }}>Now playing…</div>}
     </button>
   );

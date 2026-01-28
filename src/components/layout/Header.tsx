@@ -11,6 +11,7 @@ interface HeaderProps {
   onBackClick?: () => void;
   backButtonText?: string;
   children?: ReactNode;
+  hidden?: boolean;
 }
 
 export function Header({
@@ -21,8 +22,13 @@ export function Header({
   onBackClick,
   backButtonText = 'Back',
   children,
+  hidden = false,
 }: HeaderProps) {
   const { user, logout } = useAuth();
+
+  if (hidden) {
+    return null;
+  }
 
   const headerStyle: CSSProperties = {
     display: 'flex',
