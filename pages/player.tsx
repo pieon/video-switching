@@ -6,6 +6,7 @@ import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
 import { useSession } from '@/hooks/useSession';
 import { useWebGazer, GazeData } from '@/hooks/useWebGazer';
+import { useMediaRecorder } from '@/hooks/useMediaRecorder';
 import { trackingService } from '@/services/trackingService';
 import { MOCK_VIDEOS } from '@/utils/constants';
 
@@ -23,6 +24,16 @@ export default function PlayerPage() {
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
+  const [recordingStarted, setRecordingStarted] = useState(false);
+
+  // Media recording for screen and webcam
+  const {
+    isRecording,
+    startRecording,
+    stopRecording,
+  } = useMediaRecorder({
+    participantId: user?.participantId,
+  });
 
   // WebGazer eye tracking integration
   const handleGazeUpdate = useCallback((data: GazeData) => {
@@ -57,6 +68,21 @@ export default function PlayerPage() {
       router.push('/');
     }
   }, [user, isLoading, router]);
+
+  // Auto-start recording on mount
+  useEffect(() => {
+    if (user && !recordingStarted && !isRecording) {
+      setRecordingStarted(true);
+      startRecording();
+    }
+  }, [user, recordingStarted, isRecording, startRecording]);
+
+  // Stop recording when all videos are completed
+  useEffect(() => {
+    if (isRecording && videos.length > 0 && completed.length === videos.length) {
+      stopRecording();
+    }
+  }, [isRecording, completed.length, videos.length, stopRecording]);
 
   const handleSelectVideo = async (id: string) => {
     // Block clicking other videos in non-switching mode while something is playing
@@ -152,6 +178,28 @@ export default function PlayerPage() {
   return (
     <PageLayout maxWidth={1400}>
       <HamburgerMenu />
+
+      {/* Test button for stopping recording */}
+      {isRecording && (
+        <button
+          onClick={stopRecording}
+          style={{
+            position: 'fixed',
+            top: 16,
+            left: 16,
+            padding: '8px 16px',
+            background: '#f44336',
+            color: 'white',
+            border: 'none',
+            borderRadius: 8,
+            cursor: 'pointer',
+            zIndex: 1000,
+            fontSize: 14,
+          }}
+        >
+          ⏹ Stop Recording
+        </button>
+      )}
 
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}

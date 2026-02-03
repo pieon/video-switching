@@ -59,7 +59,7 @@ export default function LoginPage() {
             textAlign: 'center',
           }}
         >
-          If you don't have a Participant ID, please contact the researcher.
+          If you don't have a Participant ID, please register new ID.
         </p>
       </Card>
 
