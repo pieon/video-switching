@@ -40,6 +40,40 @@ export default function CalibratePage() {
   const CLICKS_PER_POINT = 5;
   const CLICK_BUFFER_MS = 500; // Buffer between clicks to prevent accidental rapid taps
 
+  // Follows WebGazer's precision_calculation.js
+  const calculatePrecision = (
+    xArray: number[],
+    yArray: number[],
+    staringPointX: number,
+    staringPointY: number
+  ): number => {
+    const halfWindowHeight = window.innerHeight / 2;
+    const numPoints = Math.min(xArray.length, yArray.length);
+    const precisionPercentages: number[] = [];
+
+    for (let i = 0; i < numPoints; i++) {
+      const distance = Math.sqrt(
+        Math.pow(staringPointX - xArray[i], 2) + Math.pow(staringPointY - yArray[i], 2)
+      );
+
+      let precision: number;
+      if (distance <= halfWindowHeight && distance > -1) {
+        // Linear falloff: 0px = 100%, halfWindowHeight = 0%
+        precision = 100 - (distance / halfWindowHeight * 100);
+      } else if (distance > halfWindowHeight) {
+        precision = 0;
+      } else {
+        precision = 100;
+      }
+
+      precisionPercentages.push(precision);
+    }
+
+    if (precisionPercentages.length === 0) return 0;
+    const sum = precisionPercentages.reduce((a, b) => a + b, 0);
+    return Math.round(sum / precisionPercentages.length);
+  };
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !user) {
@@ -119,82 +153,85 @@ export default function CalibratePage() {
   };
 
   const measureAccuracy = async () => {
+    console.log('[Accuracy] measureAccuracy() called');
     setIsMeasuringAccuracy(true);
-    gazeCollectionRef.current = []; // Reset collection
+    gazeCollectionRef.current = [];
 
-    // Get screen center (target location)
-    const screenCenterX = window.innerWidth / 2;
-    const screenCenterY = window.innerHeight / 2;
+    // Staring/target point is the center of the screen (matches WebGazer's approach)
+    const staringPointX = window.innerWidth / 2;
+    const staringPointY = window.innerHeight / 2;
 
-    // Set up gaze listener to collect predictions
-    if (typeof window !== 'undefined' && (window as any).webgazer) {
-      const webgazer = (window as any).webgazer;
+    const WebGazerModule = typeof window !== 'undefined' ? await import('webgazer') : null;
+    const webgazer: any = WebGazerModule?.default;
 
-      // Store original listener if any
+    if (webgazer) {
+      console.log('[Accuracy] WebGazer found');
+
+      // Collect gaze predictions via listener
       const collectGaze = (data: any) => {
         if (data && data.x && data.y) {
           gazeCollectionRef.current.push({ x: data.x, y: data.y });
         }
       };
-
-      // Add gaze listener
       webgazer.setGazeListener(collectGaze);
 
-      // Wait 5 seconds while collecting gaze predictions
+      // Wait 5 seconds while user stares at center dot
+      console.log('[Accuracy] Waiting 5 seconds...');
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Clear the listener
       webgazer.setGazeListener(null);
+
+      console.log('[Accuracy] 5s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
+
+      // Use the last 50 points (matching WebGazer's circular buffer size)
+      const points = gazeCollectionRef.current.slice(-50);
+      const xArray = points.map((p) => p.x);
+      const yArray = points.map((p) => p.y);
+
+      // Step 5: Calculate precision using WebGazer's method
+      let calculatedAccuracy = 50;
+
+      if (xArray.length > 0) {
+        calculatedAccuracy = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
+        console.log(
+          `Accuracy check: ${xArray.length} points, precision: ${calculatedAccuracy}%`
+        );
+      } else {
+        console.warn('No gaze data collected during accuracy check');
+      }
+
+      setAccuracyPercentage(calculatedAccuracy);
+      setIsMeasuringAccuracy(false);
+      setIsComplete(true);
+
+      // Auto-proceed if accuracy >= 70%
+      if (calculatedAccuracy >= 70) {
+        if (user) {
+          const calibrationKey = `webgazer_calibrated_${user.participantId}`;
+          localStorage.setItem(calibrationKey, 'true');
+          console.log("You are good to go");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        router.push('/admin');
+      }
     } else {
+      console.warn('[Accuracy] WebGazer NOT found on window');
       // Fallback if webgazer not available
       await new Promise((resolve) => setTimeout(resolve, 5000));
-    }
-
-    let calculatedAccuracy = 50; // default if no data
-
-    const collectedPoints = gazeCollectionRef.current;
-
-    if (collectedPoints.length > 0) {
-      // Calculate average distance from screen center (where the dot is)
-      const distances = collectedPoints.map((p) =>
-        Math.sqrt(Math.pow(p.x - screenCenterX, 2) + Math.pow(p.y - screenCenterY, 2))
-      );
-
-      const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
-
-      // Convert distance to accuracy percentage
-      // 0px distance = 100% accuracy
-      // 200px distance = 0% accuracy (scales linearly)
-      const maxDistance = 200; // pixels - adjust based on your needs
-      const accuracy = Math.max(0, Math.min(100, 100 - (avgDistance / maxDistance) * 100));
-      calculatedAccuracy = Math.round(accuracy);
-
-      console.log(`Accuracy check: ${collectedPoints.length} points collected, avg distance: ${avgDistance.toFixed(1)}px, accuracy: ${calculatedAccuracy}%`);
-    } else {
-      console.warn('No gaze data collected during accuracy check');
-    }
-
-    setAccuracyPercentage(calculatedAccuracy);
-    setIsMeasuringAccuracy(false);
-    setIsComplete(true);
-
-    // Auto-proceed if accuracy >= 70%
-    if (calculatedAccuracy >= 70) {
-      if (typeof window !== 'undefined' && user) {
-        const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-        localStorage.setItem(calibrationKey, 'true');
-      }
-      // Wait 2 seconds to show the result before proceeding
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      router.push('/admin');
+      setAccuracyPercentage(50);
+      setIsMeasuringAccuracy(false);
+      setIsComplete(true);
     }
   };
 
-  const handleRecalibrate = () => {
+  const handleRecalibrate = async () => {
     setIsComplete(false);
     setAccuracyPercentage(null);
-    if (typeof window !== 'undefined' && (window as any).webgazer) {
-      (window as any).webgazer.clearData();
+    if (typeof window !== 'undefined') {
+      const WGModule = await import('webgazer');
+      const wg: any = WGModule.default;
+      if (wg) wg.clearData();
     }
     startCalibration();
   };
