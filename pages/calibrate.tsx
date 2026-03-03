@@ -81,17 +81,6 @@ export default function CalibratePage() {
     }
   }, [user, isLoading, router]);
 
-  // Check if THIS USER already calibrated
-  useEffect(() => {
-    if (typeof window !== 'undefined' && user) {
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      const calibrated = localStorage.getItem(calibrationKey);
-      if (calibrated === 'true') {
-        router.push('/admin');
-      }
-    }
-  }, [router, user]);
-
   const startCalibration = () => {
     // Create a randomized order of point indices
     const indices = Array.from({ length: CALIBRATION_POINTS.length }, (_, i) => i);
@@ -207,13 +196,8 @@ export default function CalibratePage() {
 
       // Auto-proceed if accuracy >= 70%
       if (calculatedAccuracy >= 70) {
-        if (user) {
-          const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-          localStorage.setItem(calibrationKey, 'true');
-          console.log("You are good to go");
-        }
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        router.push('/admin');
+        router.push('/training');
       }
     } else {
       console.warn('[Accuracy] WebGazer NOT found on window');
@@ -237,19 +221,11 @@ export default function CalibratePage() {
   };
 
   const handleAcceptCalibration = () => {
-    if (typeof window !== 'undefined' && user) {
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      localStorage.setItem(calibrationKey, 'true');
-    }
-    router.push('/admin');
+    router.push('/training');
   };
 
   const handleSkipCalibration = () => {
-    if (typeof window !== 'undefined' && user) {
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      localStorage.setItem(calibrationKey, 'true');
-    }
-    router.push('/admin');
+    router.push('/training');
   };
 
   if (isLoading || !user) {

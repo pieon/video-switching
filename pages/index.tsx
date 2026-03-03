@@ -13,15 +13,7 @@ export default function LoginPage() {
   // Redirect to calibration if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      // Check if THIS USER has been calibrated
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      const calibrated = localStorage.getItem(calibrationKey);
-
-      if (calibrated === 'true') {
-        router.push('/admin');
-      } else {
-        router.push('/calibrate');
-      }
+      router.push('/calibrate');
     }
   }, [user, isLoading, router]);
 

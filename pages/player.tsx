@@ -6,6 +6,7 @@ import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
 import { useSession } from '@/hooks/useSession';
 import { useWebGazer, GazeData } from '@/hooks/useWebGazer';
+import { useGazeSectionTracker } from '@/hooks/useGazeSectionTracker';
 import { useMediaRecorder } from '@/hooks/useMediaRecorder';
 import { trackingService } from '@/services/trackingService';
 import { MOCK_VIDEOS } from '@/utils/constants';
@@ -25,6 +26,7 @@ export default function PlayerPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
   const [recordingStarted, setRecordingStarted] = useState(false);
+  const splitRatio = 0.67;
 
   // Media recording for screen and webcam
   const {
@@ -35,27 +37,28 @@ export default function PlayerPage() {
     participantId: user?.participantId,
   });
 
+  // Gaze section tracking (top/bottom transitions)
+  const { processGaze, saveAndClearTransitions } = useGazeSectionTracker({
+    participantId: user?.participantId,
+    splitRatio,
+  });
+
   // WebGazer eye tracking integration
   const handleGazeUpdate = useCallback((data: GazeData) => {
-    // You can send gaze data to your tracking service here
-    // For now, we'll just collect it
-    if (currentSessionId) {
-      // Optional: Send gaze data to server
-      // trackingService.trackGaze(currentSessionId, data);
-    }
-  }, [currentSessionId]);
+    processGaze(data);
+  }, [processGaze]);
 
-  const { isReady, isCalibrated, getGazeData, clearGazeData } = useWebGazer({
+  const { getGazeData, clearGazeData } = useWebGazer({
     onGazeUpdate: handleGazeUpdate,
     saveGazeData: true,
   });
 
   const videos = useMemo(() => {
-    // Non-switching: videos 1-5, Switching: videos 6-10
+    // Non-switching: videos 1-4, Switching: videos 5-8
     if (mode === 'non-switching') {
-      return MOCK_VIDEOS.filter(v => ['1', '2', '3', '4', '5'].includes(v.id));
+      return MOCK_VIDEOS.filter(v => ['1', '2', '3', '4'].includes(v.id));
     }
-    return MOCK_VIDEOS.filter(v => ['6', '7', '8', '9', '10'].includes(v.id));
+    return MOCK_VIDEOS.filter(v => ['5', '6', '7', '8'].includes(v.id));
   }, [mode]);
   const currentVideo = useMemo(
     () => videos.find((v) => v.id === current) ?? null,
@@ -116,32 +119,28 @@ export default function PlayerPage() {
   };
 
   const handleVideoEnded = () => {
-    if (currentVideo && currentSessionId) {
-      // Get and log gaze data
+    if (!currentVideo) return;
+
+    // Track completion via tracking service (if session exists)
+    if (currentSessionId) {
       const gazeData = getGazeData();
       console.log(`Collected ${gazeData.length} gaze data points for video ${currentVideo.id}`);
 
-      // Optional: Send gaze data to server
-      // You can add a method to trackingService to handle gaze data
-
-      // Track completion
       trackingService.trackComplete(
         currentSessionId,
         getPlaybackPosition(currentVideo.id)
       );
-
-      // Complete the session
       trackingService.completeSession(currentSessionId).catch(console.error);
-
-      markCompleted(currentVideo.id);
-      // Clear the saved position since video is completed
-      updatePlaybackPosition(currentVideo.id, 0);
-      setCurrent(null);
-      setCurrentSessionId(null);
-
-      // Clear gaze data for next video
-      clearGazeData();
     }
+
+    markCompleted(currentVideo.id);
+    updatePlaybackPosition(currentVideo.id, 0);
+    setCurrent(null);
+    setCurrentSessionId(null);
+
+    // Save gaze transitions to localStorage and clear for next video
+    saveAndClearTransitions();
+    clearGazeData();
   };
 
   const handlePlay = (position: number) => {

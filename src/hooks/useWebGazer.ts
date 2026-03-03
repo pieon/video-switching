@@ -32,8 +32,13 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false }: UseWebGazerO
         if (!mounted) return;
 
         // Set gaze listener before beginning
+        let gazeCount = 0;
         webgazer.setGazeListener((data: any, timestamp: number) => {
           if (data && data.x && data.y) {
+            gazeCount++;
+            if (gazeCount <= 3 || gazeCount % 200 === 0) {
+              console.log(`[WebGazer] Gaze #${gazeCount}: x=${Math.round(data.x)}, y=${Math.round(data.y)}`);
+            }
             const gazeData: GazeData = {
               x: data.x,
               y: data.y,

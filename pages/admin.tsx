@@ -1,7 +1,7 @@
 // Admin/Settings page - Next.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { PageLayout, Header } from '@/components/layout';
+import { PageLayout } from '@/components/layout';
 import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { Mode } from '@/types';
@@ -15,13 +15,6 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/');
-    } else if (!isLoading && user) {
-      // Check if THIS USER has been calibrated
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      const calibrated = localStorage.getItem(calibrationKey);
-      if (calibrated !== 'true') {
-        router.push('/calibrate');
-      }
     }
   }, [user, isLoading, router]);
 
@@ -57,22 +50,9 @@ export default function AdminPage() {
             Condition: {user.condition}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={() => {
-              const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-              localStorage.removeItem(calibrationKey);
-              router.push('/calibrate');
-            }}
-          >
-            Recalibrate Eye Tracking
-          </Button>
-          <Button variant="danger" size="small">
-            Logout
-          </Button>
-        </div>
+        <Button variant="danger" size="small">
+          Logout
+        </Button>
       </div>
 
       <h1 style={{ textAlign: 'center', marginBottom: 32 }}>Setting Page</h1>

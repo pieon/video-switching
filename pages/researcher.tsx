@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Button, Alert } from '@/components/ui';
 import { Participant } from '@/types';
+import { downloadGazeCSV } from '@/hooks/useGazeSectionTracker';
 
 export default function ResearcherPage() {
   const router = useRouter();
@@ -222,6 +223,13 @@ export default function ResearcherPage() {
           size="medium"
         >
           Export Participants
+        </Button>
+        <Button
+          onClick={downloadGazeCSV}
+          size="medium"
+          style={{ background: '#6a1b9a', color: 'white' }}
+        >
+          Export Gaze Transitions
         </Button>
       </div>
 
