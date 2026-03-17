@@ -21,7 +21,7 @@ export default function AdminPage() {
   const handleStartPlayer = () => {
     setMode(selectedMode);
     localStorage.setItem('video_player_mode', selectedMode);
-    router.push('/player');
+    router.push(`/training?mode=${selectedMode}`);
   };
 
   if (isLoading || !user) {

@@ -197,7 +197,7 @@ export default function CalibratePage() {
       // Auto-proceed if accuracy >= 70%
       if (calculatedAccuracy >= 70) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        router.push('/training');
+        router.push('/admin');
       }
     } else {
       console.warn('[Accuracy] WebGazer NOT found on window');
@@ -221,11 +221,11 @@ export default function CalibratePage() {
   };
 
   const handleAcceptCalibration = () => {
-    router.push('/training');
+    router.push('/admin');
   };
 
   const handleSkipCalibration = () => {
-    router.push('/training');
+    router.push('/admin');
   };
 
   if (isLoading || !user) {
