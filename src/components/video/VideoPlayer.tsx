@@ -76,8 +76,6 @@ export function VideoPlayer({
     }
   };
 
-  const showNativeControls = mode === "switching";
-
   if (!video) {
     return (
       <div
@@ -128,78 +126,45 @@ export function VideoPlayer({
               setWasPaused(true);
             }
           }}
-          controls={showNativeControls}
-          controlsList="nodownload noplaybackrate"
+          controls={false}
           style={{ width: "1000px", height: "540px", objectFit: "cover" }}
           playsInline
         />
 
-        {/* Custom controls for non-switching mode */}
-        {!showNativeControls && isHovering && (
-          <>
-            {/* Play/Pause button in center */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                pointerEvents: "none",
-              }}
-            >
-              <div style={{ pointerEvents: "auto" }}>
-                <button
-                  onClick={() => {
-                    const el = ref.current;
-                    if (!el) return;
-                    if (isPlaying) {
-                      el.pause();
-                      setIsPlaying(false);
-                    } else {
-                      el.play();
-                      setIsPlaying(true);
-                    }
-                  }}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                  style={btnStyle}
-                >
-                  {isPlaying ? "❚❚" : "▶︎"}
-                </button>
-              </div>
-            </div>
-
-            {/* Fullscreen button in bottom-right corner */}
-            <div
-              style={{
-                position: "absolute",
-                bottom: 16,
-                right: 16,
-                pointerEvents: "auto",
-              }}
-            >
+        {/* Play/Pause button in center */}
+        {isHovering && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+            }}
+          >
+            <div style={{ pointerEvents: "auto" }}>
               <button
                 onClick={() => {
                   const el = ref.current;
                   if (!el) return;
-                  if (!document.fullscreenElement) {
-                    el.requestFullscreen().catch((err) => {
-                      console.error("Error attempting to enable fullscreen:", err);
-                    });
+                  if (isPlaying) {
+                    el.pause();
+                    setIsPlaying(false);
                   } else {
-                    document.exitFullscreen();
+                    el.play();
+                    setIsPlaying(true);
                   }
                 }}
-                aria-label="Fullscreen"
+                aria-label={isPlaying ? "Pause" : "Play"}
                 style={btnStyle}
               >
-                ⛶
+                {isPlaying ? "❚❚" : "▶︎"}
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
-      <div style={{ marginTop: 8, fontWeight: 600 }}>{video.title}</div>
     </div>
   );
 }
