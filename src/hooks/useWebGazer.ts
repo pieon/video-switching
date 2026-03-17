@@ -10,9 +10,10 @@ export interface GazeData {
 interface UseWebGazerOptions {
   onGazeUpdate?: (data: GazeData) => void;
   saveGazeData?: boolean;
+  cameraDeviceId?: string;
 }
 
-export function useWebGazer({ onGazeUpdate, saveGazeData = false }: UseWebGazerOptions = {}) {
+export function useWebGazer({ onGazeUpdate, saveGazeData = false, cameraDeviceId }: UseWebGazerOptions = {}) {
   const [isReady, setIsReady] = useState(false);
   const [isCalibrated, setIsCalibrated] = useState(false);
   const gazeDataRef = useRef<GazeData[]>([]);
@@ -61,13 +62,16 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false }: UseWebGazerO
         webgazer.applyKalmanFilter(true);
 
         // Set higher video resolution for better accuracy
-        webgazer.setCameraConstraints({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-          }
-        });
+        const videoConstraints: MediaTrackConstraints = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        };
+        if (cameraDeviceId) {
+          videoConstraints.deviceId = { exact: cameraDeviceId };
+        } else {
+          videoConstraints.facingMode = 'user';
+        }
+        webgazer.setCameraConstraints({ video: videoConstraints });
 
         // Initialize WebGazer (this starts the camera but not tracking yet)
         await webgazer.begin();
@@ -148,7 +152,7 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false }: UseWebGazerO
         }
       }
     };
-  }, [onGazeUpdate, saveGazeData]);
+  }, [onGazeUpdate, saveGazeData, cameraDeviceId]);
 
   const startCalibration = () => {
     setIsCalibrated(false);

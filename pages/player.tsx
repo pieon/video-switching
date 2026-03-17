@@ -28,6 +28,11 @@ export default function PlayerPage() {
   const [recordingStarted, setRecordingStarted] = useState(false);
   const splitRatio = 0.67;
 
+  // Read saved camera selection from calibration page
+  const cameraDeviceId = typeof window !== 'undefined'
+    ? localStorage.getItem('selected_camera_device_id') || undefined
+    : undefined;
+
   // Media recording for screen and webcam
   const {
     isRecording,
@@ -35,6 +40,7 @@ export default function PlayerPage() {
     stopRecording,
   } = useMediaRecorder({
     participantId: user?.participantId,
+    cameraDeviceId,
   });
 
   // Gaze section tracking (top/bottom transitions)
@@ -51,6 +57,7 @@ export default function PlayerPage() {
   const { getGazeData, clearGazeData } = useWebGazer({
     onGazeUpdate: handleGazeUpdate,
     saveGazeData: true,
+    cameraDeviceId,
   });
 
   const videos = useMemo(() => {

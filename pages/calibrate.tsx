@@ -18,10 +18,51 @@ const CALIBRATION_POINTS = [
   { id: 9, x: 90, y: 90 }, // Bottom-right
 ];
 
+const CAMERA_STORAGE_KEY = 'selected_camera_device_id';
+
 export default function CalibratePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const { isReady } = useWebGazer({ saveGazeData: false });
+
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [cameraConfirmed, setCameraConfirmed] = useState(false);
+
+  // Load available cameras on mount
+  useEffect(() => {
+    async function loadCameras() {
+      try {
+        // Need permission first to get labels
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        tempStream.getTracks().forEach(t => t.stop());
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoCameras = devices.filter(d => d.kind === 'videoinput');
+        setCameras(videoCameras);
+
+        // Restore previously selected camera or default to first
+        const saved = localStorage.getItem(CAMERA_STORAGE_KEY);
+        const savedExists = videoCameras.some(c => c.deviceId === saved);
+        setSelectedCameraId(savedExists && saved ? saved : (videoCameras[0]?.deviceId ?? ''));
+      } catch (err) {
+        console.error('Failed to enumerate cameras:', err);
+      }
+    }
+    loadCameras();
+  }, []);
+
+  const handleConfirmCamera = () => {
+    if (selectedCameraId) {
+      localStorage.setItem(CAMERA_STORAGE_KEY, selectedCameraId);
+    }
+    setCameraConfirmed(true);
+  };
+
+  // Only initialize WebGazer after camera is confirmed
+  const { isReady } = useWebGazer(cameraConfirmed ? {
+    saveGazeData: false,
+    cameraDeviceId: selectedCameraId || undefined,
+  } : { saveGazeData: false });
 
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
   const [clicksRemaining, setClicksRemaining] = useState(5); // 5 clicks per point
@@ -268,7 +309,41 @@ export default function CalibratePage() {
         </div>
       </Header>
 
-      {!isReady && (
+      {!cameraConfirmed && cameras.length > 0 && (
+        <Card style={{ marginTop: 24, textAlign: 'center' }}>
+          <h2 style={{ marginTop: 0 }}>Select Camera</h2>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 16 }}>
+            Choose which camera to use for eye tracking.
+          </p>
+          <select
+            value={selectedCameraId}
+            onChange={(e) => setSelectedCameraId(e.target.value)}
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              padding: '10px 12px',
+              fontSize: 16,
+              borderRadius: 8,
+              border: '2px solid #ddd',
+              marginBottom: 24,
+              cursor: 'pointer',
+            }}
+          >
+            {cameras.map((cam) => (
+              <option key={cam.deviceId} value={cam.deviceId}>
+                {cam.label || `Camera ${cameras.indexOf(cam) + 1}`}
+              </option>
+            ))}
+          </select>
+          <div>
+            <Button onClick={handleConfirmCamera} size="large">
+              Confirm Camera
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {cameraConfirmed && !isReady && (
         <Card style={{ marginTop: 24 }}>
           <h3 style={{ marginTop: 0 }}>Initializing Camera...</h3>
           <p>Please allow camera access when prompted.</p>

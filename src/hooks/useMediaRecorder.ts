@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from 'react';
 
 interface UseMediaRecorderOptions {
   participantId?: string;
+  cameraDeviceId?: string;
 }
 
 interface UseMediaRecorderReturn {
@@ -15,6 +16,7 @@ interface UseMediaRecorderReturn {
 
 export function useMediaRecorder({
   participantId = 'unknown',
+  cameraDeviceId,
 }: UseMediaRecorderOptions = {}): UseMediaRecorderReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
@@ -53,8 +55,11 @@ export function useMediaRecorder({
       screenStreamRef.current = screenStream;
 
       // Request webcam (may already be in use by WebGazer, so we get a new stream)
+      const videoConstraints: MediaTrackConstraints = cameraDeviceId
+        ? { deviceId: { exact: cameraDeviceId } }
+        : true as any;
       const webcamStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: videoConstraints,
         audio: false,
       });
       webcamStreamRef.current = webcamStream;
