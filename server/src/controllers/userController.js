@@ -7,7 +7,7 @@ const { generateToken } = require('../utils/jwt');
  */
 async function createParticipant(req, res) {
   try {
-    const { participantId, condition } = req.body;
+    const { participantId, condition, videoSet = 'A' } = req.body;
 
     // Validate input
     if (!participantId || !condition) {
@@ -21,6 +21,13 @@ async function createParticipant(req, res) {
       return res.status(400).json({
         success: false,
         error: 'condition must be either "switching" or "non_switching"',
+      });
+    }
+
+    if (!['A', 'B'].includes(videoSet)) {
+      return res.status(400).json({
+        success: false,
+        error: 'videoSet must be either "A" or "B"',
       });
     }
 
@@ -41,11 +48,13 @@ async function createParticipant(req, res) {
       data: {
         participantId,
         condition,
+        videoSet,
       },
       select: {
         id: true,
         participantId: true,
         condition: true,
+        videoSet: true,
         createdAt: true,
       },
     });
@@ -88,6 +97,7 @@ async function loginParticipant(req, res) {
         id: true,
         participantId: true,
         condition: true,
+        videoSet: true,
         createdAt: true,
       },
     });
@@ -150,6 +160,7 @@ async function getAllParticipants(req, res) {
         id: true,
         participantId: true,
         condition: true,
+        videoSet: true,
         createdAt: true,
         _count: {
           select: {
@@ -178,9 +189,33 @@ async function getAllParticipants(req, res) {
   }
 }
 
+/**
+ * Delete a participant and all their data
+ * @route DELETE /api/users/:id
+ */
+async function deleteParticipant(req, res) {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Participant not found' });
+    }
+
+    // Sessions and events cascade-delete automatically via Prisma schema
+    await prisma.user.delete({ where: { id } });
+
+    res.json({ success: true, data: { message: 'Participant deleted successfully' } });
+  } catch (error) {
+    console.error('Delete participant error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete participant' });
+  }
+}
+
 module.exports = {
   createParticipant,
   loginParticipant,
   getCurrentUser,
   getAllParticipants,
+  deleteParticipant,
 };

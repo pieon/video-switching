@@ -17,6 +17,7 @@ export default function ResearcherPage() {
   const [newVideoSet, setNewVideoSet] = useState<'A' | 'B'>('A');
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -80,6 +81,34 @@ export default function ResearcherPage() {
       }, 2000);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create participant');
+    }
+  };
+
+  const handleDeleteParticipant = async (participantId: string, dbId: string) => {
+    if (!confirm(`Delete participant "${participantId}"? This will remove all their data and cannot be undone.`)) return;
+
+    setDeletingId(dbId);
+    try {
+      const response = await fetch(`${API_URL}/users/${dbId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete participant');
+
+      // Remove local data for this participant
+      const gazeKey = 'gaze_transitions';
+      try {
+        const raw = localStorage.getItem(gazeKey);
+        if (raw) {
+          const all = JSON.parse(raw);
+          delete all[participantId];
+          localStorage.setItem(gazeKey, JSON.stringify(all));
+        }
+      } catch {}
+      localStorage.removeItem(`session_number_${participantId}`);
+
+      fetchParticipants();
+    } catch (err: any) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -315,13 +344,12 @@ export default function ResearcherPage() {
                   borderBottom: '1px solid #ddd',
                 }}
               >
-                <th style={{ padding: 12, textAlign: 'left' }}>
-                  Participant ID
-                </th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Participant ID</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Starting Mode</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Starting Set</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Sessions</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Created</th>
+                <th style={{ padding: 12 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -363,6 +391,24 @@ export default function ResearcherPage() {
                   <td style={{ padding: 12 }}>{p._count?.sessions || 0}</td>
                   <td style={{ padding: 12, color: '#666' }}>
                     {new Date(p.createdAt).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <button
+                      onClick={() => handleDeleteParticipant(p.participantId, p.id)}
+                      disabled={deletingId === p.id}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: deletingId === p.id ? '#eee' : '#fff0f0',
+                        color: '#d32f2f',
+                        border: '1px solid #d32f2f',
+                        borderRadius: 6,
+                        cursor: deletingId === p.id ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {deletingId === p.id ? 'Deleting...' : 'Delete'}
+                    </button>
                   </td>
                 </tr>
               ))}
