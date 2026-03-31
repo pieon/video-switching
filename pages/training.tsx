@@ -17,7 +17,7 @@ export default function TrainingPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
-  const trainingMode = (router.query.mode as Mode) || 'non-switching';
+  const trainingMode = (router.query.mode as Mode) || 'non_switching';
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [completed, setCompleted] = useState<string[]>([]);
@@ -62,7 +62,7 @@ export default function TrainingPage() {
   }, [phase, completed, videoIds]);
 
   const handleSelectVideo = (id: string) => {
-    if (trainingMode === 'non-switching' && current && current !== id) return;
+    if (trainingMode === 'non_switching' && current && current !== id) return;
     if (completed.includes(id)) return;
     setCurrent(id);
   };
@@ -94,7 +94,7 @@ export default function TrainingPage() {
         <Card style={{ marginTop: 48, textAlign: 'center' }}>
           <h1 style={{ marginTop: 0 }}>Training Session</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
-            Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
+            Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non_switching'} mode so you know what to expect.
           </p>
           <div style={{
             background: isSwitching ? '#e8f5e9' : '#e3f2fd',
@@ -140,7 +140,7 @@ export default function TrainingPage() {
             Training Complete!
           </h2>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
-            You've practiced the {isSwitching ? 'switching' : 'non-switching'} mode. You're now ready for the experiment.
+            You've practiced the {isSwitching ? 'switching' : 'non_switching'} mode. You're now ready for the experiment.
           </p>
           <Button onClick={() => router.push('/player')} size="large">
             Start Experiment

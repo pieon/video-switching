@@ -97,7 +97,7 @@ export default function PlayerPage() {
 
   const handleSelectVideo = async (id: string) => {
     // Block clicking other videos in non-switching mode while something is playing
-    if (mode === 'non-switching' && current && current !== id) return;
+    if (mode === 'non_switching' && current && current !== id) return;
 
     if (completed.includes(id)) return; // never allow rewatch
 

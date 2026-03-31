@@ -26,7 +26,7 @@ export function VideoGrid({
           const isCurrent = current === video.id;
           const disabled =
             isCompleted ||
-            (mode === "non-switching" && current !== null && !isCurrent);
+            (mode === "non_switching" && current !== null && !isCurrent);
 
           return (
             <VideoThumbnail

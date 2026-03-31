@@ -18,9 +18,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [mode, setMode] = useState<Mode>("non-switching");
+  const [mode, setModeState] = useState<Mode>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('session_mode') as Mode) ?? 'non_switching';
+    }
+    return 'non_switching';
+  });
   const [videoSet, setVideoSet] = useState<VideoSet>('A');
   const [isLoading, setIsLoading] = useState(true);
+
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    localStorage.setItem('session_mode', m);
+  };
 
   // Check if user is already logged in on mount
   useEffect(() => {
@@ -30,7 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const currentUser = await trackingService.getCurrentUser();
           setUser(currentUser);
-          setMode(currentUser.condition);
+          // Only restore mode from localStorage if it was explicitly set (by admin page);
+          // fall back to the user's condition on first login.
+          if (!localStorage.getItem('session_mode')) {
+            setMode(currentUser.condition);
+          }
           setVideoSet(currentUser.videoSet ?? 'A');
         } catch (error) {
           console.error('Auth check failed:', error);
@@ -50,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     trackingService.clearToken();
+    localStorage.removeItem('session_mode');
     setUser(null);
   };
 

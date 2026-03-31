@@ -1,6 +1,6 @@
 // Type definitions for the video switching application
 
-export type Mode = "non-switching" | "switching";
+export type Mode = "non_switching" | "switching";
 export type VideoSet = 'A' | 'B';
 export type Page = "login" | "admin" | "player" | "researcher";
 

@@ -12,7 +12,7 @@ function getSessionNumber(participantId: string): 1 | 2 {
 }
 
 function oppositeMode(m: Mode): Mode {
-  return m === 'switching' ? 'non-switching' : 'switching';
+  return m === 'switching' ? 'non_switching' : 'switching';
 }
 
 function oppositeSet(s: VideoSet): VideoSet {
@@ -48,6 +48,8 @@ export default function AdminPage() {
   const handleStart = () => {
     setMode(currentMode);
     setVideoSet(currentSet);
+    // Clear stale session state so the player always starts fresh
+    localStorage.removeItem(`video_switching_${currentMode}`);
     router.push(`/training?mode=${currentMode}`);
   };
 

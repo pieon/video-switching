@@ -56,7 +56,7 @@ export function VideoPlayer({
 
   // Block seeking/fast-forward in non-switching mode
   const handleSeeking = () => {
-    if (mode === "non-switching" && ref.current) {
+    if (mode === "non_switching" && ref.current) {
       const el = ref.current;
       if (el.seeking && el.currentTime > previousTime) {
         el.currentTime = previousTime;
@@ -71,7 +71,7 @@ export function VideoPlayer({
 
     updatePlaybackPosition(video.id, t);
 
-    if (mode === "non-switching") {
+    if (mode === "non_switching") {
       if (t > previousTime) setPreviousTime(t);
     }
   };
