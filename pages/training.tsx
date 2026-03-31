@@ -1,5 +1,5 @@
 // Training session page - familiarizes participants with the selected mode
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
@@ -9,9 +9,6 @@ import { TRAINING_VIDEOS } from '@/utils/constants';
 import { Mode } from '@/types';
 
 type Phase = 'intro' | 'playing' | 'complete';
-
-const NON_SWITCHING_VIDEO_IDS = ['t1', 't2'];
-const SWITCHING_VIDEO_IDS = ['t3', 't4'];
 
 export default function TrainingPage() {
   const router = useRouter();
@@ -31,11 +28,8 @@ export default function TrainingPage() {
     }
   }, [user, isLoading, router]);
 
-  const videoIds = trainingMode === 'switching' ? SWITCHING_VIDEO_IDS : NON_SWITCHING_VIDEO_IDS;
-
-  const videos = useMemo(() => {
-    return TRAINING_VIDEOS.filter(v => videoIds.includes(v.id));
-  }, [videoIds]);
+  const videos = TRAINING_VIDEOS;
+  const videoIds = videos.map(v => v.id);
 
   const currentVideo = useMemo(
     () => videos.find(v => v.id === current) ?? null,
