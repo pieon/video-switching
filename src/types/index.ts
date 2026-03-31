@@ -1,12 +1,14 @@
 // Type definitions for the video switching application
 
 export type Mode = "non-switching" | "switching";
+export type VideoSet = 'A' | 'B';
 export type Page = "login" | "admin" | "player" | "researcher";
 
 export interface User {
   id: string;
   participantId: string;
   condition: Mode;
+  videoSet: VideoSet;
 }
 
 export interface Video {
@@ -15,6 +17,7 @@ export interface Video {
   url: string;
   thumbnail: string;
   durationSec?: number;
+  set?: VideoSet;
 }
 
 export interface TrackingEvent {
@@ -37,6 +40,7 @@ export interface Participant {
   id: string;
   participantId: string;
   condition: Mode;
+  videoSet: VideoSet;
   createdAt: string;
   _count?: {
     sessions: number;

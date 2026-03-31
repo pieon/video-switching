@@ -14,6 +14,7 @@ export default function ResearcherPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newParticipantId, setNewParticipantId] = useState('');
   const [newCondition, setNewCondition] = useState<'switching' | 'non_switching'>('switching');
+  const [newVideoSet, setNewVideoSet] = useState<'A' | 'B'>('A');
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
 
@@ -56,6 +57,7 @@ export default function ResearcherPage() {
         body: JSON.stringify({
           participantId: newParticipantId.trim(),
           condition: newCondition,
+          videoSet: newVideoSet,
         }),
       });
 
@@ -68,6 +70,7 @@ export default function ResearcherPage() {
       setCreateSuccess(`Participant ${newParticipantId} created successfully!`);
       setNewParticipantId('');
       setNewCondition('switching');
+      setNewVideoSet('A');
       fetchParticipants();
 
       // Close form after 2 seconds
@@ -170,7 +173,7 @@ export default function ResearcherPage() {
                   fontWeight: 600,
                 }}
               >
-                Condition:
+                Starting Mode:
               </label>
               <select
                 value={newCondition}
@@ -189,6 +192,36 @@ export default function ResearcherPage() {
                 <option value="switching">Switching</option>
                 <option value="non_switching">Non-Switching</option>
               </select>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Starting Video Set:
+              </label>
+              <select
+                value={newVideoSet}
+                onChange={(e) => setNewVideoSet(e.target.value as 'A' | 'B')}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: 16,
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="A">Set A (Cafe Chaos, One of These Goats, Buried Treasure, Building Bridges)</option>
+                <option value="B">Set B (Zadies Shell Shuffle, Pokey Plant, Lemonade Problem, Design Time)</option>
+              </select>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                Session 2 will automatically use the opposite set + opposite mode.
+              </div>
             </div>
 
             <Button
@@ -285,7 +318,8 @@ export default function ResearcherPage() {
                 <th style={{ padding: 12, textAlign: 'left' }}>
                   Participant ID
                 </th>
-                <th style={{ padding: 12, textAlign: 'left' }}>Condition</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Starting Mode</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Starting Set</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Sessions</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Created</th>
               </tr>
@@ -312,6 +346,18 @@ export default function ResearcherPage() {
                       {p.condition === 'switching'
                         ? 'Switching'
                         : 'Non-Switching'}
+                    </span>
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: p.videoSet === 'A' ? '#E8F5E9' : '#FCE4EC',
+                      color: p.videoSet === 'A' ? '#2E7D32' : '#C62828',
+                    }}>
+                      Set {p.videoSet ?? '—'}
                     </span>
                   </td>
                   <td style={{ padding: 12 }}>{p._count?.sessions || 0}</td>

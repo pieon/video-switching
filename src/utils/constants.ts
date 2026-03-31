@@ -2,14 +2,16 @@
 import { Video } from '@/types';
 
 export const MOCK_VIDEOS: Video[] = [
-  { id: "1", title: "Cafe Chaos", url: "/videos/1_Cafe Chaos 5 minute video.mp4", thumbnail: "/thumbs/Cafe Chaos.PNG" },
-  { id: "2", title: "Zadies Shell Shuffle", url: "/videos/2_Zadies Shell Shuffle 5 minute video.mp4", thumbnail: "/thumbs/Zadies Shell Shuffle.PNG" },
-  { id: "3", title: "One of These Goats", url: "/videos/3_OneOfTheseGoats_5Mins.mp4", thumbnail: "/thumbs/One of These Goats.PNG" },
-  { id: "4", title: "Buried Treasure", url: "/videos/7_BurriedTreasure_5mins.mp4", thumbnail: "/thumbs/Burried Treassure.PNG" },
-  { id: "5", title: "Building Bridges", url: "/videos/BuildingBridges_5mins.mp4", thumbnail: "/thumbs/Building Bridges.PNG" },
-  { id: "6", title: "Design Time", url: "/videos/Design Time.mp4", thumbnail: "/thumbs/Design Time.PNG" },
-  { id: "7", title: "Lemonade Problem", url: "/videos/Lemonade Problem - 5 mins.mp4", thumbnail: "/thumbs/Lemonade Problem.PNG" },
-  { id: "8", title: "Pokey Plant", url: "/videos/PokeyPlant_5mins.mp4", thumbnail: "/thumbs/Pokey Plant.PNG" },
+  // Set A
+  { id: "1a", title: "Cafe Chaos",          url: "/videos/1a_Cafe_Chaos.mp4",            thumbnail: "/thumbs/Cafe Chaos.PNG",           set: 'A' },
+  { id: "2a", title: "One of These Goats",  url: "/videos/2a_OneOfTheseGoats.mp4",        thumbnail: "/thumbs/One of These Goats.PNG",   set: 'A' },
+  { id: "3a", title: "Buried Treasure",     url: "/videos/3a_BurriedTreasure.mp4",        thumbnail: "/thumbs/Burried Treassure.PNG",    set: 'A' },
+  { id: "4a", title: "Building Bridges",    url: "/videos/4a_BuildingBridges.mp4",        thumbnail: "/thumbs/Building Bridges.PNG",     set: 'A' },
+  // Set B
+  { id: "1b", title: "Zadies Shell Shuffle",url: "/videos/1b_Zadies_Shell_Shuffle.mp4",   thumbnail: "/thumbs/Zadies Shell Shuffle.PNG", set: 'B' },
+  { id: "2b", title: "Pokey Plant",         url: "/videos/2b_PokeyPlant.mp4",             thumbnail: "/thumbs/Pokey Plant.PNG",          set: 'B' },
+  { id: "3b", title: "Lemonade Problem",    url: "/videos/3b_Lemonade_Problem.mp4",       thumbnail: "/thumbs/Lemonade Problem.PNG",     set: 'B' },
+  { id: "4b", title: "Design Time",         url: "/videos/4b_Design_Time.mp4",            thumbnail: "/thumbs/Design Time.PNG",          set: 'B' },
 ];
 
 export const TRAINING_VIDEOS: Video[] = [

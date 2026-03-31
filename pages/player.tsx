@@ -60,13 +60,14 @@ export default function PlayerPage() {
     cameraDeviceId,
   });
 
+  const { videoSet } = useAuth();
   const videos = useMemo(() => {
-    // Non-switching: videos 1-4, Switching: videos 5-8
-    if (mode === 'non-switching') {
-      return MOCK_VIDEOS.filter(v => ['1', '2', '3', '4'].includes(v.id));
-    }
-    return MOCK_VIDEOS.filter(v => ['5', '6', '7', '8'].includes(v.id));
-  }, [mode]);
+    return MOCK_VIDEOS.filter(v => v.set === videoSet);
+  }, [videoSet]);
+
+  const sessionAllComplete = videos.length > 0 && completed.length >= videos.length;
+  const sessionNumber = user ? (localStorage.getItem(`session_number_${user.participantId}`) === '2' ? 2 : 1) : 1;
+  const isLastSession = sessionNumber === 2;
   const currentVideo = useMemo(
     () => videos.find((v) => v.id === current) ?? null,
     [videos, current]
@@ -159,7 +160,7 @@ export default function PlayerPage() {
     }
   };
 
-  const handlePause = (position: number) => {
+  const handlePause = (_position: number) => {
     if (currentSessionId) {
       setPauseStartTime(Date.now());
     }
@@ -181,11 +182,50 @@ export default function PlayerPage() {
     );
   }
 
+  // Session complete screen
+  if (sessionAllComplete) {
+    return (
+      <PageLayout maxWidth={600} style={{ marginTop: 80 }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ color: '#4caf50' }}>Session {sessionNumber} Complete!</h1>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 32 }}>
+            You've watched all videos for this session.
+          </p>
+          {isLastSession ? (
+            <p style={{ fontSize: 16, color: '#333' }}>
+              The experiment is complete. Thank you for participating!
+            </p>
+          ) : (
+            <button
+              onClick={() => {
+                if (user) {
+                  localStorage.setItem(`session_number_${user.participantId}`, '2');
+                }
+                router.push('/admin');
+              }}
+              style={{
+                padding: '14px 32px',
+                fontSize: 18,
+                fontWeight: 600,
+                background: '#007AFF',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Continue to Session 2
+            </button>
+          )}
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout maxWidth={1400}>
       <HamburgerMenu />
 
-      {/* Test button for stopping recording */}
       {isRecording && (
         <button
           onClick={stopRecording}
@@ -210,7 +250,6 @@ export default function PlayerPage() {
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}
       >
-        {/* Player */}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <VideoPlayer
             mode={mode}
@@ -225,7 +264,6 @@ export default function PlayerPage() {
           />
         </div>
 
-        {/* Video Grid */}
         <VideoGrid
           videos={videos}
           completed={completed}
