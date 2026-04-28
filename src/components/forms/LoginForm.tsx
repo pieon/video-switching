@@ -32,7 +32,7 @@ export function LoginForm() {
         type="text"
         placeholder="Participant ID (e.g., P001)"
         value={participantId}
-        onChange={(e) => setParticipantId(e.target.value.toUpperCase())}
+        onChange={(e) => setParticipantId(e.target.value)}
         disabled={loading}
         required
       />

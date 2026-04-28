@@ -417,30 +417,13 @@ export default function CalibratePage() {
             <div>Point {currentOrderIndex + 1} of {CALIBRATION_POINTS.length}</div>
           </div>
 
-          {/* Instructions */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 40,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              color: 'white',
-              fontSize: 16,
-              textAlign: 'center',
-              maxWidth: 600,
-            }}
-          >
-            Look at the dot, wait for it to turn green, then click. Repeat {CLICKS_PER_POINT} times. Keep your head still.
-          </div>
-
           {/* Calibration points */}
           {CALIBRATION_POINTS.map((point, index) => {
             const isActive = currentPointIndex === index;
             const isCompleted = completedPoints.includes(point.id);
-            const clicks = clickCounts[point.id] || 0;
 
-            // Calculate opacity based on clicks (0.2 base + 0.16 per click, up to 1.0)
-            const clickOpacity = isActive ? Math.min(0.2 + (clicks * 0.16), 1.0) : 1.0;
+            // Start at 100% opacity when highlighted, decrease by 0.16 per click (down to 0.2)
+            const clickOpacity = 1.0
 
             return (
               <button
@@ -452,57 +435,29 @@ export default function CalibratePage() {
                   left: `${point.x}%`,
                   top: `${point.y}%`,
                   transform: 'translate(-50%, -50%)',
-                  width: isActive ? 80 : 50,
-                  height: isActive ? 80 : 50,
-                  borderRadius: '50%',
-                  border: '4px solid white',
-                  background: isCompleted
-                    ? '#ffeb3b'  // Yellow when completed
-                    : isActive
-                    ? '#2196F3'
-                    : '#555',
+                  width: isActive ? 120 : 90,
+                  height: isActive ? 120 : 90,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
                   cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
-                  opacity: isCompleted ? 0.4 : isActive ? clickOpacity : 0.2,
-                  boxShadow: isActive
-                    ? '0 0 30px rgba(33, 150, 243, 0.8), 0 0 60px rgba(33, 150, 243, 0.4)'
-                    : 'none',
+                  opacity: isCompleted ? 0.8 : isActive ? clickOpacity : 0.4,
                   animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
-                  overflow: 'hidden',
                 }}
                 aria-label={`Calibration point ${point.id}`}
               >
-                {/* Center dot */}
-                {isActive && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      background: 'white',
-                      boxShadow: '0 0 10px rgba(255, 255, 255, 0.8)',
-                    }}
-                  />
-                )}
-                {isCompleted && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      color: 'white',
-                      fontSize: 24,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    ✓
-                  </div>
-                )}
+                <img
+                  src={isCompleted ? '/Images/GreenFlowerSprite.png' : '/Images/BlueFlowerSprite.png'}
+                  alt=""
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    imageRendering: 'pixelated',
+                    display: 'block',
+                  }}
+                />
               </button>
             );
           })}
@@ -588,6 +543,19 @@ export default function CalibratePage() {
           50% {
             transform: translate(-50%, -50%) scale(1.1);
           }
+        }
+      `}</style>
+
+      <style jsx global>{`
+        #webgazerGazeDot {
+          background: url('/Images/LadyBugSprite.png') center / contain no-repeat !important;
+          background-color: transparent !important;
+          width: 60px !important;
+          height: 60px !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          opacity: 1 !important;
+          image-rendering: pixelated;
         }
       `}</style>
 

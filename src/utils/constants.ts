@@ -3,22 +3,29 @@ import { Video } from '@/types';
 
 export const MOCK_VIDEOS: Video[] = [
   // Set A
-  { id: "1a", title: "Cafe Chaos",          url: "/videos/1a_Cafe_Chaos.mp4",            thumbnail: "/thumbs/Cafe Chaos.PNG",           set: 'A' },
-  { id: "2a", title: "One of These Goats",  url: "/videos/2a_OneOfTheseGoats.mp4",        thumbnail: "/thumbs/One of These Goats.PNG",   set: 'A' },
-  { id: "3a", title: "Buried Treasure",     url: "/videos/3a_BurriedTreasure.mp4",        thumbnail: "/thumbs/Burried Treassure.PNG",    set: 'A' },
-  { id: "4a", title: "Building Bridges",    url: "/videos/4a_BuildingBridges.mp4",        thumbnail: "/thumbs/Building Bridges.PNG",     set: 'A' },
+  { id: "1a", title: "Cafe Chaos",          url: "/videos/stimulant/1_SET A/1_Cafe Chaos 5 minute video.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_A/1_Cafe Chaos 5 minute video thumb.jpg", set: 'A' },
+  { id: "2a", title: "One of These Goats",  url: "/videos/stimulant/1_SET A/3_OneOfTheseGoats_5Mins.mp4",     thumbnail: "/thumbs/stimulant_thumb/Set_A/3_OneOfTheseGoats_5Mins thumb.jpg",     set: 'A' },
+  { id: "3a", title: "Buried Treasure",     url: "/videos/stimulant/1_SET A/5_BurriedTreasure_5mins.mp4",     thumbnail: "/thumbs/stimulant_thumb/Set_A/5_BurriedTreasure_5mins thumb.jpg",     set: 'A' },
+  { id: "4a", title: "Building Bridges",    url: "/videos/stimulant/1_SET A/9_Building Bridges_5mins_v2.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_A/9_Building Bridges_5mins_v2 thumb.jpg", set: 'A' },
   // Set B
-  { id: "1b", title: "Zadies Shell Shuffle",url: "/videos/1b_Zadies_Shell_Shuffle.mp4",   thumbnail: "/thumbs/Zadies Shell Shuffle.PNG", set: 'B' },
-  { id: "2b", title: "Pokey Plant",         url: "/videos/2b_PokeyPlant.mp4",             thumbnail: "/thumbs/Pokey Plant.PNG",          set: 'B' },
-  { id: "3b", title: "Lemonade Problem",    url: "/videos/3b_Lemonade_Problem.mp4",       thumbnail: "/thumbs/Lemonade Problem.PNG",     set: 'B' },
-  { id: "4b", title: "Design Time",         url: "/videos/4b_Design_Time.mp4",            thumbnail: "/thumbs/Design Time.PNG",          set: 'B' },
+  { id: "1b", title: "Zadies Shell Shuffle",url: "/videos/stimulant/2_SET B/2_Zadies Shell Shuffle 5 minute video.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_B/2_Zadies Shell Shuffle 5 minute video thumb.jpg", set: 'B' },
+  { id: "2b", title: "Pokey Plant",         url: "/videos/stimulant/2_SET B/4_PokeyPlant_5mins.mp4",                    thumbnail: "/thumbs/stimulant_thumb/Set_B/4_PokeyPlant_5mins thumb.jpg",                    set: 'B' },
+  { id: "3b", title: "Lemonade Problem",    url: "/videos/stimulant/2_SET B/6_Lemonade Problem_5mins v2.mp4",           thumbnail: "/thumbs/stimulant_thumb/Set_B/6_Lemonade Problem_5mins v2 thumb.jpg",           set: 'B' },
+  { id: "4b", title: "Design Time",         url: "/videos/stimulant/2_SET B/10_Design Time.mp4",                        thumbnail: "/thumbs/stimulant_thumb/Set_B/10_Design Time thumb.jpg",                        set: 'B' },
 ];
 
-export const TRAINING_VIDEOS: Video[] = [
-  { id: "t1", title: "Ready Jet Go Halloween", url: "/videos/training/Ready Jet Go Halloween-5 seconds.mp4", thumbnail: "/thumbs/training/Ready Jet Go.PNG" },
-  { id: "t2", title: "Lyla in the Loop", url: "/videos/training/Lyla in the Loop- When Luke Became Stu - 5 seconds.mp4", thumbnail: "/thumbs/training/Lyla in the Loop.PNG" },
-  { id: "t3", title: "Daniel Tiger Teeth Clean", url: "/videos/training/Daniel Tiger Daniel Gets His Teeth Clean-5 seconds.mp4", thumbnail: "/thumbs/training/Daniel Tiger.PNG" },
-  { id: "t4", title: "Sid the Science Kid", url: "/videos/training/Sid the Science Kid- Clean Air- 5 seconds.mp4", thumbnail: "/thumbs/training/Sid the Science Kid.PNG" },
+export const TRAINING_VIDEOS_1: Video[] = [
+  { id: "t1_1", title: "House That Ants Build", url: "/videos/training/Training 1/House That Ants Build.mp4", thumbnail: "/thumbs/training_thumb/training_2/house_that_ants_build_thumb.jpg" },
+  { id: "t1_2", title: "Search for String",     url: "/videos/training/Training 1/Search for String.mp4",     thumbnail: "/thumbs/training_thumb/training_2/search_for_string_thumb.jpg" },
+  { id: "t1_3", title: "Slot Problem",          url: "/videos/training/Training 1/Slot Problem.mp4",          thumbnail: "/thumbs/training_thumb/training_2/slot_problem_thumb.jpg" },
+  { id: "t1_4", title: "Snout Wash Day",        url: "/videos/training/Training 1/Snout Wash Day.mp4",        thumbnail: "/thumbs/training_thumb/training_2/snout_wash_day_thumb.jpg" },
+];
+
+export const TRAINING_VIDEOS_2: Video[] = [
+  { id: "t2_1", title: "Daniel the Tiger",         url: "/videos/training/Training 2/Daniel the Tiger 5 mins.mp4",         thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
+  { id: "t2_2", title: "Lyla in the Loop",         url: "/videos/training/Training 2/Lyla in the Loop.mp4",                thumbnail: "/thumbs/training_thumb/training_1/Lyla in the Loop thumb.jpg" },
+  { id: "t2_3", title: "Ready Jet Go",             url: "/videos/training/Training 2/Ready Jet Go 5 mins.mp4",             thumbnail: "/thumbs/training_thumb/training_1/Ready Jet Go 5 mins thumb.jpg" },
+  { id: "t2_4", title: "Sid the Science Reporter", url: "/videos/training/Training 2/Sid the Science Reporter 5 mins.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
 ];
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';

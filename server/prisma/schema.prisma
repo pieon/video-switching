@@ -18,6 +18,7 @@ model User {
   participantId String         @unique
   condition     String         // "switching" or "non_switching"
   videoSet      String         @default("A") // "A" or "B"
+  trainingGroup String         @default("1") // "1" or "2"
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   sessions      VideoSession[]

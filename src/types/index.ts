@@ -2,6 +2,7 @@
 
 export type Mode = "non_switching" | "switching";
 export type VideoSet = 'A' | 'B';
+export type TrainingGroup = '1' | '2';
 export type Page = "login" | "admin" | "player" | "researcher";
 
 export interface User {
@@ -9,6 +10,7 @@ export interface User {
   participantId: string;
   condition: Mode;
   videoSet: VideoSet;
+  trainingGroup: TrainingGroup;
 }
 
 export interface Video {
@@ -41,6 +43,7 @@ export interface Participant {
   participantId: string;
   condition: Mode;
   videoSet: VideoSet;
+  trainingGroup: TrainingGroup;
   createdAt: string;
   _count?: {
     sessions: number;
