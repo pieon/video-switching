@@ -28,6 +28,8 @@ async function authenticate(req, res, next) {
         id: true,
         participantId: true,
         condition: true,
+        videoSet: true,
+        trainingGroup: true,
         createdAt: true,
       },
     });

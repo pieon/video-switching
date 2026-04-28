@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Button, Alert } from '@/components/ui';
 import { Participant } from '@/types';
+import { downloadGazeCSV } from '@/hooks/useGazeSectionTracker';
 
 export default function ResearcherPage() {
   const router = useRouter();
@@ -13,8 +14,11 @@ export default function ResearcherPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newParticipantId, setNewParticipantId] = useState('');
   const [newCondition, setNewCondition] = useState<'switching' | 'non_switching'>('switching');
+  const [newVideoSet, setNewVideoSet] = useState<'A' | 'B'>('A');
+  const [newTrainingGroup, setNewTrainingGroup] = useState<'1' | '2'>('1');
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -55,6 +59,8 @@ export default function ResearcherPage() {
         body: JSON.stringify({
           participantId: newParticipantId.trim(),
           condition: newCondition,
+          videoSet: newVideoSet,
+          trainingGroup: newTrainingGroup,
         }),
       });
 
@@ -67,6 +73,8 @@ export default function ResearcherPage() {
       setCreateSuccess(`Participant ${newParticipantId} created successfully!`);
       setNewParticipantId('');
       setNewCondition('switching');
+      setNewVideoSet('A');
+      setNewTrainingGroup('1');
       fetchParticipants();
 
       // Close form after 2 seconds
@@ -76,6 +84,34 @@ export default function ResearcherPage() {
       }, 2000);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create participant');
+    }
+  };
+
+  const handleDeleteParticipant = async (participantId: string, dbId: string) => {
+    if (!confirm(`Delete participant "${participantId}"? This will remove all their data and cannot be undone.`)) return;
+
+    setDeletingId(dbId);
+    try {
+      const response = await fetch(`${API_URL}/users/${dbId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete participant');
+
+      // Remove local data for this participant
+      const gazeKey = 'gaze_transitions';
+      try {
+        const raw = localStorage.getItem(gazeKey);
+        if (raw) {
+          const all = JSON.parse(raw);
+          delete all[participantId];
+          localStorage.setItem(gazeKey, JSON.stringify(all));
+        }
+      } catch {}
+      localStorage.removeItem(`session_number_${participantId}`);
+
+      fetchParticipants();
+    } catch (err: any) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -169,7 +205,7 @@ export default function ResearcherPage() {
                   fontWeight: 600,
                 }}
               >
-                Condition:
+                Starting Mode:
               </label>
               <select
                 value={newCondition}
@@ -187,6 +223,63 @@ export default function ResearcherPage() {
               >
                 <option value="switching">Switching</option>
                 <option value="non_switching">Non-Switching</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Starting Video Set:
+              </label>
+              <select
+                value={newVideoSet}
+                onChange={(e) => setNewVideoSet(e.target.value as 'A' | 'B')}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: 16,
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="A">Set A (Cafe Chaos, One of These Goats, Buried Treasure, Building Bridges)</option>
+                <option value="B">Set B (Zadies Shell Shuffle, Pokey Plant, Lemonade Problem, Design Time)</option>
+              </select>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                Session 2 will automatically use the opposite set + opposite mode.
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Training Group:
+              </label>
+              <select
+                value={newTrainingGroup}
+                onChange={(e) => setNewTrainingGroup(e.target.value as '1' | '2')}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: 16,
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="1">Group 1 — Training 2 repeats training videos</option>
+                <option value="2">Group 2 — Training 2 uses experiment videos</option>
               </select>
             </div>
 
@@ -222,6 +315,13 @@ export default function ResearcherPage() {
           size="medium"
         >
           Export Participants
+        </Button>
+        <Button
+          onClick={downloadGazeCSV}
+          size="medium"
+          style={{ background: '#6a1b9a', color: 'white' }}
+        >
+          Export Gaze Transitions
         </Button>
       </div>
 
@@ -274,12 +374,13 @@ export default function ResearcherPage() {
                   borderBottom: '1px solid #ddd',
                 }}
               >
-                <th style={{ padding: 12, textAlign: 'left' }}>
-                  Participant ID
-                </th>
-                <th style={{ padding: 12, textAlign: 'left' }}>Condition</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Participant ID</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Starting Mode</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Starting Set</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Training Group</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Sessions</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Created</th>
+                <th style={{ padding: 12 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -306,9 +407,51 @@ export default function ResearcherPage() {
                         : 'Non-Switching'}
                     </span>
                   </td>
+                  <td style={{ padding: 12 }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: p.videoSet === 'A' ? '#E8F5E9' : '#FCE4EC',
+                      color: p.videoSet === 'A' ? '#2E7D32' : '#C62828',
+                    }}>
+                      Set {p.videoSet ?? '—'}
+                    </span>
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: p.trainingGroup === '1' ? '#E0F7FA' : '#FFF3E0',
+                      color: p.trainingGroup === '1' ? '#00695C' : '#E65100',
+                    }}>
+                      Group {p.trainingGroup ?? '—'}
+                    </span>
+                  </td>
                   <td style={{ padding: 12 }}>{p._count?.sessions || 0}</td>
                   <td style={{ padding: 12, color: '#666' }}>
                     {new Date(p.createdAt).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <button
+                      onClick={() => handleDeleteParticipant(p.participantId, p.id)}
+                      disabled={deletingId === p.id}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: deletingId === p.id ? '#eee' : '#fff0f0',
+                        color: '#d32f2f',
+                        border: '1px solid #d32f2f',
+                        borderRadius: 6,
+                        cursor: deletingId === p.id ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {deletingId === p.id ? 'Deleting...' : 'Delete'}
+                    </button>
                   </td>
                 </tr>
               ))}

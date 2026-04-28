@@ -35,18 +35,14 @@ export function VideoThumbnail({
       aria-disabled={disabled}
       style={buttonStyle}
     >
-      <video
-        src={video.url}
-        style={{ width: "100%", borderRadius: 8 }}
-        muted
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          e.currentTarget.currentTime = 0;
-        }}
+      <img
+        src={video.thumbnail}
+        alt={video.title}
+        style={{ width: "100%", borderRadius: 8, display: "block" }}
       />
-      <div style={{ marginTop: 8, fontWeight: 600 }}>
+      {/* <div style={{ marginTop: 8, fontWeight: 600 }}>
         {video.title} {isCompleted ? "✓" : ""}
-      </div>
+      </div> */}
       {isCurrent && <div style={{ fontSize: 12 }}>Now playing…</div>}
     </button>
   );

@@ -5,6 +5,7 @@ const {
   loginParticipant,
   getCurrentUser,
   getAllParticipants,
+  deleteParticipant,
 } = require('../controllers/userController');
 const { authenticate } = require('../middleware/auth');
 
@@ -17,5 +18,6 @@ router.get('/me', authenticate, getCurrentUser);
 // Admin/Researcher routes (you may want to add admin-only middleware later)
 router.post('/create', createParticipant);
 router.get('/all', getAllParticipants);
+router.delete('/:id', deleteParticipant);
 
 module.exports = router;

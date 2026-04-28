@@ -1,35 +1,33 @@
 // Admin/Settings page - Next.js
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { PageLayout, Header } from '@/components/layout';
+import { PageLayout } from '@/components/layout';
 import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { Mode } from '@/types';
+import { Mode, VideoSet } from '@/types';
+
+function getSessionNumber(participantId: string): 1 | 2 {
+  const stored = localStorage.getItem(`session_number_${participantId}`);
+  return stored === '2' ? 2 : 1;
+}
+
+function oppositeMode(m: Mode): Mode {
+  return m === 'switching' ? 'non_switching' : 'switching';
+}
+
+function oppositeSet(s: VideoSet): VideoSet {
+  return s === 'A' ? 'B' : 'A';
+}
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, mode, setMode, isLoading } = useAuth();
-  const [selectedMode, setSelectedMode] = useState<Mode>(mode);
+  const { user, setMode, setVideoSet, isLoading } = useAuth();
 
-  // Redirect to login if not authenticated, or to calibration if not calibrated
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/');
-    } else if (!isLoading && user) {
-      // Check if THIS USER has been calibrated
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      const calibrated = localStorage.getItem(calibrationKey);
-      if (calibrated !== 'true') {
-        router.push('/calibrate');
-      }
     }
   }, [user, isLoading, router]);
-
-  const handleStartPlayer = () => {
-    setMode(selectedMode);
-    localStorage.setItem('video_player_mode', selectedMode);
-    router.push('/player');
-  };
 
   if (isLoading || !user) {
     return (
@@ -39,123 +37,90 @@ export default function AdminPage() {
     );
   }
 
+  const sessionNumber = getSessionNumber(user.participantId);
+  const currentMode: Mode = sessionNumber === 1
+    ? user.condition
+    : oppositeMode(user.condition);
+  const currentSet: VideoSet = sessionNumber === 1
+    ? (user.videoSet ?? 'A')
+    : oppositeSet(user.videoSet ?? 'A');
+
+  const handleStart = () => {
+    setMode(currentMode);
+    setVideoSet(currentSet);
+    // Clear stale session state so the player always starts fresh
+    localStorage.removeItem(`video_switching_${currentMode}`);
+    router.push(`/training?mode=${currentMode}&set=${currentSet}&group=${user.trainingGroup}`);
+  };
+
   return (
-    <PageLayout maxWidth={600} style={{ marginTop: 0 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 14, color: '#666' }}>
-            Participant ID: {user.participantId}
-          </div>
-          <div style={{ fontSize: 14, color: '#666' }}>
-            Condition: {user.condition}
-          </div>
+    <PageLayout maxWidth={600} style={{ marginTop: 40 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ fontSize: 14, color: '#666' }}>
+          Participant: {user.participantId}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={() => {
-              const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-              localStorage.removeItem(calibrationKey);
-              router.push('/calibrate');
-            }}
-          >
-            Recalibrate Eye Tracking
-          </Button>
-          <Button variant="danger" size="small">
-            Logout
-          </Button>
-        </div>
+        <Button variant="danger" size="small">Logout</Button>
       </div>
 
-      <h1 style={{ textAlign: 'center', marginBottom: 32 }}>Setting Page</h1>
+      <h1 style={{ textAlign: 'center', marginBottom: 32 }}>
+        Session {sessionNumber} of 2
+      </h1>
 
       <Card>
-        <h2 style={{ marginTop: 0 }}>Select Mode</h2>
+        <h2 style={{ marginTop: 0 }}>Your Assignment</h2>
 
-        <div
-          style={{
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+          <div style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            marginBottom: 24,
-          }}
-        >
-          {/* Non-Switching Mode */}
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: 16,
-              border: '2px solid',
-              borderColor:
-                selectedMode === 'non-switching' ? '#007AFF' : '#ddd',
-              borderRadius: 12,
-              cursor: 'pointer',
-              background:
-                selectedMode === 'non-switching' ? '#E3F2FF' : '#fff',
-            }}
-          >
-            <input
-              type="radio"
-              name="mode"
-              value="non-switching"
-              checked={selectedMode === 'non-switching'}
-              onChange={(e) => setSelectedMode(e.target.value as Mode)}
-              style={{ marginRight: 12, width: 20, height: 20 }}
-            />
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 16px',
+            borderRadius: 12,
+            border: '2px solid #007AFF',
+            background: '#E3F2FF',
+          }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 18, color: 'black' }}>
-                Non-Switching Mode
-              </div>
-              <div style={{ fontSize: 14, color: 'black', marginTop: 4 }}>
-                Must watch videos completely, no seeking forward, can't switch
-                between videos
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Mode</div>
+              <div style={{ fontSize: 13, color: '#555', marginTop: 2 }}>
+                {currentMode === 'switching'
+                  ? 'Full controls — switch between videos freely'
+                  : 'Must watch each video completely, no fast-forward'}
               </div>
             </div>
-          </label>
+            <span style={{ fontWeight: 700, fontSize: 18, color: '#007AFF' }}>
+              {currentMode === 'switching' ? 'Switching' : 'Non-Switching'}
+            </span>
+          </div>
 
-          {/* Switching Mode */}
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: 16,
-              border: '2px solid',
-              borderColor: selectedMode === 'switching' ? '#007AFF' : '#ddd',
-              borderRadius: 12,
-              cursor: 'pointer',
-              background: selectedMode === 'switching' ? '#E3F2FF' : '#fff',
-            }}
-          >
-            <input
-              type="radio"
-              name="mode"
-              value="switching"
-              checked={selectedMode === 'switching'}
-              onChange={(e) => setSelectedMode(e.target.value as Mode)}
-              style={{ marginRight: 12, width: 20, height: 20 }}
-            />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 16px',
+            borderRadius: 12,
+            border: `2px solid ${currentSet === 'A' ? '#4caf50' : '#e91e63'}`,
+            background: currentSet === 'A' ? '#E8F5E9' : '#FCE4EC',
+          }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 18, color: 'black' }}>
-                Switching Mode
-              </div>
-              <div style={{ fontSize: 14, color: 'black', marginTop: 4 }}>
-                Full controls available, can switch between videos freely
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Video Set</div>
+              <div style={{ fontSize: 13, color: '#555', marginTop: 2 }}>
+                {currentSet === 'A'
+                  ? 'Cafe Chaos · One of These Goats · Buried Treasure · Building Bridges'
+                  : 'Zadies Shell Shuffle · Pokey Plant · Lemonade Problem · Design Time'}
               </div>
             </div>
-          </label>
+            <span style={{
+              fontWeight: 700,
+              fontSize: 18,
+              color: currentSet === 'A' ? '#2E7D32' : '#C62828',
+            }}>
+              Set {currentSet}
+            </span>
+          </div>
         </div>
 
-        <Button onClick={handleStartPlayer} fullWidth size="large">
-          Start Video Player
+        <Button onClick={handleStart} fullWidth size="large">
+          Start Session {sessionNumber}
         </Button>
       </Card>
     </PageLayout>

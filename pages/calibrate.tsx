@@ -1,5 +1,5 @@
 // Eye tracking calibration page - Next.js
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Button, Card } from '@/components/ui';
@@ -18,10 +18,51 @@ const CALIBRATION_POINTS = [
   { id: 9, x: 90, y: 90 }, // Bottom-right
 ];
 
+const CAMERA_STORAGE_KEY = 'selected_camera_device_id';
+
 export default function CalibratePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const { isReady } = useWebGazer({ saveGazeData: false });
+
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [cameraConfirmed, setCameraConfirmed] = useState(false);
+
+  // Load available cameras on mount
+  useEffect(() => {
+    async function loadCameras() {
+      try {
+        // Need permission first to get labels
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        tempStream.getTracks().forEach(t => t.stop());
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoCameras = devices.filter(d => d.kind === 'videoinput');
+        setCameras(videoCameras);
+
+        // Restore previously selected camera or default to first
+        const saved = localStorage.getItem(CAMERA_STORAGE_KEY);
+        const savedExists = videoCameras.some(c => c.deviceId === saved);
+        setSelectedCameraId(savedExists && saved ? saved : (videoCameras[0]?.deviceId ?? ''));
+      } catch (err) {
+        console.error('Failed to enumerate cameras:', err);
+      }
+    }
+    loadCameras();
+  }, []);
+
+  const handleConfirmCamera = () => {
+    if (selectedCameraId) {
+      localStorage.setItem(CAMERA_STORAGE_KEY, selectedCameraId);
+    }
+    setCameraConfirmed(true);
+  };
+
+  // Only initialize WebGazer after camera is confirmed
+  const { isReady } = useWebGazer(cameraConfirmed ? {
+    saveGazeData: false,
+    cameraDeviceId: selectedCameraId || undefined,
+  } : { saveGazeData: false });
 
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
   const [clicksRemaining, setClicksRemaining] = useState(5); // 5 clicks per point
@@ -34,14 +75,45 @@ export default function CalibratePage() {
   const [showAccuracyConfirm, setShowAccuracyConfirm] = useState(false);
   const [isMeasuringAccuracy, setIsMeasuringAccuracy] = useState(false);
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
-  const [dwellProgress, setDwellProgress] = useState(0); // 0-100 percentage
-  const [isClickEnabled, setIsClickEnabled] = useState(false);
-  const dwellTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const dwellStartRef = useRef<number | null>(null);
+  const lastClickTimeRef = useRef<number | null>(null);
   const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
 
   const CLICKS_PER_POINT = 5;
-  const DWELL_TIME_MS = 500; // Time user must hover before click is enabled
+  const CLICK_BUFFER_MS = 500; // Buffer between clicks to prevent accidental rapid taps
+
+  // Follows WebGazer's precision_calculation.js
+  const calculatePrecision = (
+    xArray: number[],
+    yArray: number[],
+    staringPointX: number,
+    staringPointY: number
+  ): number => {
+    const halfWindowHeight = window.innerHeight / 2;
+    const numPoints = Math.min(xArray.length, yArray.length);
+    const precisionPercentages: number[] = [];
+
+    for (let i = 0; i < numPoints; i++) {
+      const distance = Math.sqrt(
+        Math.pow(staringPointX - xArray[i], 2) + Math.pow(staringPointY - yArray[i], 2)
+      );
+
+      let precision: number;
+      if (distance <= halfWindowHeight && distance > -1) {
+        // Linear falloff: 0px = 100%, halfWindowHeight = 0%
+        precision = 100 - (distance / halfWindowHeight * 100);
+      } else if (distance > halfWindowHeight) {
+        precision = 0;
+      } else {
+        precision = 100;
+      }
+
+      precisionPercentages.push(precision);
+    }
+
+    if (precisionPercentages.length === 0) return 0;
+    const sum = precisionPercentages.reduce((a, b) => a + b, 0);
+    return Math.round(sum / precisionPercentages.length);
+  };
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -49,17 +121,6 @@ export default function CalibratePage() {
       router.push('/');
     }
   }, [user, isLoading, router]);
-
-  // Check if THIS USER already calibrated
-  useEffect(() => {
-    if (typeof window !== 'undefined' && user) {
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      const calibrated = localStorage.getItem(calibrationKey);
-      if (calibrated === 'true') {
-        router.push('/admin');
-      }
-    }
-  }, [router, user]);
 
   const startCalibration = () => {
     // Create a randomized order of point indices
@@ -74,65 +135,22 @@ export default function CalibratePage() {
     setCompletedPoints([]);
     setClickCounts({});
     setAccuracyPercentage(null);
-    setDwellProgress(0);
-    setIsClickEnabled(false);
+    lastClickTimeRef.current = null;
   };
 
-  // Clear dwell timer on cleanup
-  useEffect(() => {
-    return () => {
-      if (dwellTimerRef.current) {
-        clearInterval(dwellTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handlePointMouseEnter = useCallback((index: number) => {
+  const handlePointClick = async (pointId: number, index: number) => {
     if (!isCalibrating || currentPointIndex !== index) return;
 
-    // Start dwell timer
-    dwellStartRef.current = Date.now();
-    setDwellProgress(0);
-    setIsClickEnabled(false);
-
-    dwellTimerRef.current = setInterval(() => {
-      if (dwellStartRef.current) {
-        const elapsed = Date.now() - dwellStartRef.current;
-        const progress = Math.min((elapsed / DWELL_TIME_MS) * 100, 100);
-        setDwellProgress(progress);
-
-        if (progress >= 100) {
-          setIsClickEnabled(true);
-          if (dwellTimerRef.current) {
-            clearInterval(dwellTimerRef.current);
-          }
-        }
-      }
-    }, 16); // ~60fps update
-  }, [isCalibrating, currentPointIndex, DWELL_TIME_MS]);
-
-  const handlePointMouseLeave = useCallback(() => {
-    // Clear dwell timer and reset progress
-    if (dwellTimerRef.current) {
-      clearInterval(dwellTimerRef.current);
-      dwellTimerRef.current = null;
+    // Check click buffer to prevent rapid taps
+    const now = Date.now();
+    if (lastClickTimeRef.current && now - lastClickTimeRef.current < CLICK_BUFFER_MS) {
+      return; // Too soon since last click
     }
-    dwellStartRef.current = null;
-    setDwellProgress(0);
-    setIsClickEnabled(false);
-  }, []);
-
-  const handlePointClick = async (pointId: number, index: number) => {
-    if (!isCalibrating || currentPointIndex !== index || !isClickEnabled) return;
+    lastClickTimeRef.current = now;
 
     // Track click count for visual feedback
     const currentClicks = (clickCounts[pointId] || 0) + 1;
     setClickCounts((prev) => ({ ...prev, [pointId]: currentClicks }));
-
-    // Reset dwell state for next click
-    setDwellProgress(0);
-    setIsClickEnabled(false);
-    dwellStartRef.current = null;
 
     // Decrement clicks for this point
     const newClicksRemaining = clicksRemaining - 1;
@@ -165,99 +183,89 @@ export default function CalibratePage() {
   };
 
   const measureAccuracy = async () => {
+    console.log('[Accuracy] measureAccuracy() called');
     setIsMeasuringAccuracy(true);
-    gazeCollectionRef.current = []; // Reset collection
+    gazeCollectionRef.current = [];
 
-    // Get screen center (target location)
-    const screenCenterX = window.innerWidth / 2;
-    const screenCenterY = window.innerHeight / 2;
+    // Staring/target point is the center of the screen (matches WebGazer's approach)
+    const staringPointX = window.innerWidth / 2;
+    const staringPointY = window.innerHeight / 2;
 
-    // Set up gaze listener to collect predictions
-    if (typeof window !== 'undefined' && (window as any).webgazer) {
-      const webgazer = (window as any).webgazer;
+    const WebGazerModule = typeof window !== 'undefined' ? await import('webgazer') : null;
+    const webgazer: any = WebGazerModule?.default;
 
-      // Store original listener if any
+    if (webgazer) {
+      console.log('[Accuracy] WebGazer found');
+
+      // Collect gaze predictions via listener
       const collectGaze = (data: any) => {
         if (data && data.x && data.y) {
           gazeCollectionRef.current.push({ x: data.x, y: data.y });
         }
       };
-
-      // Add gaze listener
       webgazer.setGazeListener(collectGaze);
 
-      // Wait 5 seconds while collecting gaze predictions
+      // Wait 5 seconds while user stares at center dot
+      console.log('[Accuracy] Waiting 5 seconds...');
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Clear the listener
       webgazer.setGazeListener(null);
+
+      console.log('[Accuracy] 5s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
+
+      // Use the last 50 points (matching WebGazer's circular buffer size)
+      const points = gazeCollectionRef.current.slice(-50);
+      const xArray = points.map((p) => p.x);
+      const yArray = points.map((p) => p.y);
+
+      // Step 5: Calculate precision using WebGazer's method
+      let calculatedAccuracy = 50;
+
+      if (xArray.length > 0) {
+        calculatedAccuracy = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
+        console.log(
+          `Accuracy check: ${xArray.length} points, precision: ${calculatedAccuracy}%`
+        );
+      } else {
+        console.warn('No gaze data collected during accuracy check');
+      }
+
+      setAccuracyPercentage(calculatedAccuracy);
+      setIsMeasuringAccuracy(false);
+      setIsComplete(true);
+
+      // Auto-proceed if accuracy >= 70%
+      if (calculatedAccuracy >= 70) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        router.push('/admin');
+      }
     } else {
+      console.warn('[Accuracy] WebGazer NOT found on window');
       // Fallback if webgazer not available
       await new Promise((resolve) => setTimeout(resolve, 5000));
-    }
-
-    let calculatedAccuracy = 50; // default if no data
-
-    const collectedPoints = gazeCollectionRef.current;
-
-    if (collectedPoints.length > 0) {
-      // Calculate average distance from screen center (where the dot is)
-      const distances = collectedPoints.map((p) =>
-        Math.sqrt(Math.pow(p.x - screenCenterX, 2) + Math.pow(p.y - screenCenterY, 2))
-      );
-
-      const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
-
-      // Convert distance to accuracy percentage
-      // 0px distance = 100% accuracy
-      // 200px distance = 0% accuracy (scales linearly)
-      const maxDistance = 200; // pixels - adjust based on your needs
-      const accuracy = Math.max(0, Math.min(100, 100 - (avgDistance / maxDistance) * 100));
-      calculatedAccuracy = Math.round(accuracy);
-
-      console.log(`Accuracy check: ${collectedPoints.length} points collected, avg distance: ${avgDistance.toFixed(1)}px, accuracy: ${calculatedAccuracy}%`);
-    } else {
-      console.warn('No gaze data collected during accuracy check');
-    }
-
-    setAccuracyPercentage(calculatedAccuracy);
-    setIsMeasuringAccuracy(false);
-    setIsComplete(true);
-
-    // Auto-proceed if accuracy >= 70%
-    if (calculatedAccuracy >= 70) {
-      if (typeof window !== 'undefined' && user) {
-        const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-        localStorage.setItem(calibrationKey, 'true');
-      }
-      // Wait 2 seconds to show the result before proceeding
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      router.push('/admin');
+      setAccuracyPercentage(50);
+      setIsMeasuringAccuracy(false);
+      setIsComplete(true);
     }
   };
 
-  const handleRecalibrate = () => {
+  const handleRecalibrate = async () => {
     setIsComplete(false);
     setAccuracyPercentage(null);
-    if (typeof window !== 'undefined' && (window as any).webgazer) {
-      (window as any).webgazer.clearData();
+    if (typeof window !== 'undefined') {
+      const WGModule = await import('webgazer');
+      const wg: any = WGModule.default;
+      if (wg) wg.clearData();
     }
     startCalibration();
   };
 
   const handleAcceptCalibration = () => {
-    if (typeof window !== 'undefined' && user) {
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      localStorage.setItem(calibrationKey, 'true');
-    }
     router.push('/admin');
   };
 
   const handleSkipCalibration = () => {
-    if (typeof window !== 'undefined' && user) {
-      const calibrationKey = `webgazer_calibrated_${user.participantId}`;
-      localStorage.setItem(calibrationKey, 'true');
-    }
     router.push('/admin');
   };
 
@@ -301,7 +309,41 @@ export default function CalibratePage() {
         </div>
       </Header>
 
-      {!isReady && (
+      {!cameraConfirmed && cameras.length > 0 && (
+        <Card style={{ marginTop: 24, textAlign: 'center' }}>
+          <h2 style={{ marginTop: 0 }}>Select Camera</h2>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 16 }}>
+            Choose which camera to use for eye tracking.
+          </p>
+          <select
+            value={selectedCameraId}
+            onChange={(e) => setSelectedCameraId(e.target.value)}
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              padding: '10px 12px',
+              fontSize: 16,
+              borderRadius: 8,
+              border: '2px solid #ddd',
+              marginBottom: 24,
+              cursor: 'pointer',
+            }}
+          >
+            {cameras.map((cam) => (
+              <option key={cam.deviceId} value={cam.deviceId}>
+                {cam.label || `Camera ${cameras.indexOf(cam) + 1}`}
+              </option>
+            ))}
+          </select>
+          <div>
+            <Button onClick={handleConfirmCamera} size="large">
+              Confirm Camera
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {cameraConfirmed && !isReady && (
         <Card style={{ marginTop: 24 }}>
           <h3 style={{ marginTop: 0 }}>Initializing Camera...</h3>
           <p>Please allow camera access when prompted.</p>
@@ -375,119 +417,47 @@ export default function CalibratePage() {
             <div>Point {currentOrderIndex + 1} of {CALIBRATION_POINTS.length}</div>
           </div>
 
-          {/* Instructions */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 40,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              color: 'white',
-              fontSize: 16,
-              textAlign: 'center',
-              maxWidth: 600,
-            }}
-          >
-            Look at the dot, wait for it to turn green, then click. Repeat {CLICKS_PER_POINT} times. Keep your head still.
-          </div>
-
           {/* Calibration points */}
           {CALIBRATION_POINTS.map((point, index) => {
             const isActive = currentPointIndex === index;
             const isCompleted = completedPoints.includes(point.id);
-            const clicks = clickCounts[point.id] || 0;
 
-            // Calculate opacity based on clicks (0.2 base + 0.16 per click, up to 1.0)
-            const clickOpacity = isActive ? Math.min(0.2 + (clicks * 0.16), 1.0) : 1.0;
+            // Start at 100% opacity when highlighted, decrease by 0.16 per click (down to 0.2)
+            const clickOpacity = 1.0
 
             return (
               <button
                 key={point.id}
                 onClick={() => handlePointClick(point.id, index)}
-                onMouseEnter={() => handlePointMouseEnter(index)}
-                onMouseLeave={handlePointMouseLeave}
                 disabled={!isActive}
                 style={{
                   position: 'absolute',
                   left: `${point.x}%`,
                   top: `${point.y}%`,
                   transform: 'translate(-50%, -50%)',
-                  width: isActive ? 80 : 50,
-                  height: isActive ? 80 : 50,
-                  borderRadius: '50%',
-                  border: '4px solid white',
-                  background: isCompleted
-                    ? '#ffeb3b'  // Yellow when completed
-                    : isActive
-                    ? '#2196F3'
-                    : '#555',
-                  cursor: isActive ? (isClickEnabled ? 'pointer' : 'wait') : 'default',
+                  width: isActive ? 120 : 90,
+                  height: isActive ? 120 : 90,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
-                  opacity: isCompleted ? 0.4 : isActive ? clickOpacity : 0.2,
-                  boxShadow: isActive
-                    ? '0 0 30px rgba(33, 150, 243, 0.8), 0 0 60px rgba(33, 150, 243, 0.4)'
-                    : 'none',
-                  animation: isActive && isClickEnabled ? 'pulse 1.5s ease-in-out infinite' : 'none',
-                  overflow: 'hidden',
+                  opacity: isCompleted ? 0.8 : isActive ? clickOpacity : 0.4,
+                  animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label={`Calibration point ${point.id}`}
               >
-                {/* Dwell progress ring */}
-                {isActive && dwellProgress > 0 && dwellProgress < 100 && (
-                  <svg
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      transform: 'rotate(-90deg)',
-                    }}
-                  >
-                    <circle
-                      cx="50%"
-                      cy="50%"
-                      r="35%"
-                      fill="none"
-                      stroke="rgba(76, 175, 80, 0.8)"
-                      strokeWidth="8"
-                      strokeDasharray={`${dwellProgress * 2.2} 220`}
-                    />
-                  </svg>
-                )}
-                {isActive && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: isClickEnabled ? 20 : 16,
-                      height: isClickEnabled ? 20 : 16,
-                      borderRadius: '50%',
-                      background: isClickEnabled ? '#4caf50' : 'white',
-                      boxShadow: isClickEnabled
-                        ? '0 0 15px rgba(76, 175, 80, 0.8)'
-                        : '0 0 10px rgba(255, 255, 255, 0.8)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  />
-                )}
-                {isCompleted && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      color: 'white',
-                      fontSize: 24,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    ✓
-                  </div>
-                )}
+                <img
+                  src={isCompleted ? '/Images/GreenFlowerSprite.png' : '/Images/BlueFlowerSprite.png'}
+                  alt=""
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    imageRendering: 'pixelated',
+                    display: 'block',
+                  }}
+                />
               </button>
             );
           })}
@@ -573,6 +543,19 @@ export default function CalibratePage() {
           50% {
             transform: translate(-50%, -50%) scale(1.1);
           }
+        }
+      `}</style>
+
+      <style jsx global>{`
+        #webgazerGazeDot {
+          background: url('/Images/LadyBugSprite.png') center / contain no-repeat !important;
+          background-color: transparent !important;
+          width: 60px !important;
+          height: 60px !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          opacity: 1 !important;
+          image-rendering: pixelated;
         }
       `}</style>
 
