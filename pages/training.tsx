@@ -5,6 +5,7 @@ import { PageLayout } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
 import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
+import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { TRAINING_VIDEOS_1, TRAINING_VIDEOS_2, MOCK_VIDEOS } from '@/utils/constants';
 import { Mode, VideoSet, TrainingGroup } from '@/types';
 
@@ -13,6 +14,8 @@ type Phase = 'intro1' | 'playing1' | 'intro2' | 'playing2' | 'complete';
 export default function TrainingPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+
+  useExperimentTheme();
 
   const trainingMode = (router.query.mode as Mode) || 'non_switching';
   const sessionSet = (router.query.set as VideoSet) || 'A';

@@ -21,6 +21,11 @@ body {
   background: #fff;
 }
 
+body.experiment-theme {
+  background: #000;
+  color: #fff;
+}
+
 #__next {
   width: 100%;
 }

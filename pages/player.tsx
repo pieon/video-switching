@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { PageLayout, HamburgerMenu } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
+import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useSession } from '@/hooks/useSession';
 import { useWebGazer, GazeData } from '@/hooks/useWebGazer';
 import { useGazeSectionTracker } from '@/hooks/useGazeSectionTracker';
@@ -14,6 +15,7 @@ import { MOCK_VIDEOS } from '@/utils/constants';
 export default function PlayerPage() {
   const router = useRouter();
   const { user, mode, isLoading } = useAuth();
+  useExperimentTheme();
   const {
     completed,
     current,
@@ -226,7 +228,7 @@ export default function PlayerPage() {
     <PageLayout maxWidth={1400}>
       <HamburgerMenu />
 
-      {isRecording && (
+      {/* {isRecording && (
         <button
           onClick={stopRecording}
           style={{
@@ -235,6 +237,7 @@ export default function PlayerPage() {
             left: 16,
             padding: '8px 16px',
             background: '#f44336',
+            opacity: 0.1,
             color: 'white',
             border: 'none',
             borderRadius: 8,
@@ -245,7 +248,7 @@ export default function PlayerPage() {
         >
           ⏹ Stop Recording
         </button>
-      )}
+      )} */}
 
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}
