@@ -12,7 +12,6 @@ interface VideoThumbnailProps {
 
 export function VideoThumbnail({
   video,
-  isCompleted,
   isCurrent,
   disabled,
   onClick,
@@ -25,7 +24,7 @@ export function VideoThumbnail({
     background: disabled ? "#f4f4f4" : "#fff",
     opacity: disabled ? 0.6 : 1,
     cursor: disabled ? "not-allowed" : "pointer",
-    width: 200,
+    width: 320,
   };
 
   return (
@@ -40,9 +39,6 @@ export function VideoThumbnail({
         alt={video.title}
         style={{ width: "100%", borderRadius: 8, display: "block" }}
       />
-      {/* <div style={{ marginTop: 8, fontWeight: 600 }}>
-        {video.title} {isCompleted ? "✓" : ""}
-      </div> */}
       {isCurrent && <div style={{ fontSize: 12 }}>Now playing…</div>}
     </button>
   );
