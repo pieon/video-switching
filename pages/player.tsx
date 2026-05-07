@@ -1,5 +1,5 @@
 // Video player page - Next.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, HamburgerMenu } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
@@ -27,7 +27,7 @@ export default function PlayerPage() {
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
-  const [recordingStarted, setRecordingStarted] = useState(false);
+  const recordingStartedRef = useRef(false);
   const splitRatio = 0.67;
 
   // Read saved camera selection from calibration page
@@ -37,7 +37,6 @@ export default function PlayerPage() {
 
   // Media recording for screen and webcam
   const {
-    isRecording,
     startRecording,
     stopRecording,
   } = useMediaRecorder({
@@ -82,20 +81,27 @@ export default function PlayerPage() {
     }
   }, [user, isLoading, router]);
 
-  // Auto-start recording on mount
+  // Auto-start recording on mount. Use a ref guard to ensure we never call
+  // startRecording twice — under React 18 StrictMode (dev), the effect runs
+  // mount → cleanup → mount, and a state-based guard isn't synchronous enough
+  // to block the second invocation before the screen-share prompt re-fires.
   useEffect(() => {
-    if (user && !recordingStarted && !isRecording) {
-      setRecordingStarted(true);
+    if (user && !recordingStartedRef.current) {
+      recordingStartedRef.current = true;
       startRecording();
     }
-  }, [user, recordingStarted, isRecording, startRecording]);
+  }, [user, startRecording]);
 
-  // Stop recording when all videos are completed
+  // Stop recording when navigating away from the player page.
   useEffect(() => {
-    if (isRecording && videos.length > 0 && completed.length === videos.length) {
+    const handleRouteChange = () => {
       stopRecording();
-    }
-  }, [isRecording, completed.length, videos.length, stopRecording]);
+    };
+    router.events.on('routeChangeStart', handleRouteChange);
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChange);
+    };
+  }, [router, stopRecording]);
 
   const handleSelectVideo = async (id: string) => {
     // Block clicking other videos in non-switching mode while something is playing

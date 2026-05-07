@@ -43,8 +43,6 @@ export default function TrainingPage() {
   const videos = isPhase2 ? training2Videos : training1Videos;
   const completed = isPhase2 ? completed2 : completed1;
   const setCompleted = isPhase2 ? setCompleted2 : setCompleted1;
-  const videoIds = videos.map(v => v.id);
-
   const currentVideo = useMemo(
     () => videos.find(v => v.id === current) ?? null,
     [videos, current]
@@ -91,6 +89,17 @@ export default function TrainingPage() {
     }
   };
 
+  const handleForceSkip = () => {
+    if (phase === 'playing1') {
+      setPhase('intro2');
+      setCurrent(null);
+      setPlaybackPositions({});
+    } else if (phase === 'playing2') {
+      setPhase('complete');
+      setCurrent(null);
+    }
+  };
+
   const noop = () => {};
 
   if (isLoading || !user) {
@@ -108,7 +117,7 @@ export default function TrainingPage() {
     return (
       <PageLayout maxWidth={700}>
         <Card style={{ marginTop: 48, textAlign: 'center' }}>
-          <h1 style={{ marginTop: 0 }}>Training 1 of 2</h1>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training 1 of 2</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
           </p>
@@ -154,7 +163,7 @@ export default function TrainingPage() {
     return (
       <PageLayout maxWidth={700}>
         <Card style={{ marginTop: 48, textAlign: 'center' }}>
-          <h1 style={{ marginTop: 0 }}>Training 2 of 2</h1>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training 2 of 2</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             {trainingGroup === '2' ? group2Text : group1Text}
           </p>
@@ -188,8 +197,6 @@ export default function TrainingPage() {
   // Active training (playing1 or playing2)
   const trainingNumber = phase === 'playing2' ? 2 : 1;
   const phaseLabel = `Training ${trainingNumber}: ${isSwitching ? 'Switching' : 'Non-Switching'} Mode`;
-  const phaseCompleted = completed.filter(id => videoIds.includes(id)).length;
-  const phaseTotal = videoIds.length;
 
   return (
     <PageLayout maxWidth={1400}>
@@ -208,8 +215,24 @@ export default function TrainingPage() {
           color: isSwitching ? '#2e7d32' : '#1565c0',
           border: `1px solid ${isSwitching ? '#4caf50' : '#2196F3'}`,
         }}>
-          {phaseLabel} ({phaseCompleted}/{phaseTotal} videos)
+          {phaseLabel}
         </span>
+        <button
+          onClick={handleForceSkip}
+          style={{
+            marginLeft: 12,
+            padding: '6px 14px',
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 600,
+            background: 'transparent',
+            color: '#fff',
+            border: '1px solid #888',
+            cursor: 'pointer',
+          }}
+        >
+          Skip to next step →
+        </button>
       </div>
 
       <main style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
