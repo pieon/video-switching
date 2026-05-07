@@ -50,7 +50,7 @@ export default function AdminPage() {
     setVideoSet(currentSet);
     // Clear stale session state so the player always starts fresh
     localStorage.removeItem(`video_switching_${currentMode}`);
-    router.push(`/training?mode=${currentMode}&set=${currentSet}&group=${user.trainingGroup}`);
+    router.push(`/training?mode=${currentMode}&set=${currentSet}`);
   };
 
   return (
