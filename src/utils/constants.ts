@@ -14,18 +14,11 @@ export const MOCK_VIDEOS: Video[] = [
   { id: "4b", title: "Design Time",         url: "/videos/stimulant/2_SET B/10_Design Time.mp4",                        thumbnail: "/thumbs/stimulant_thumb/Set_B/10_Design Time thumb.jpg",                        set: 'B' },
 ];
 
-export const TRAINING_VIDEOS_1: Video[] = [
-  { id: "t1_1", title: "House That Ants Build", url: "/videos/training/Training 1/House That Ants Build.mp4", thumbnail: "/thumbs/training_thumb/training_2/house_that_ants_build_thumb.jpg" },
-  { id: "t1_2", title: "Search for String",     url: "/videos/training/Training 1/Search for String.mp4",     thumbnail: "/thumbs/training_thumb/training_2/search_for_string_thumb.jpg" },
-  { id: "t1_3", title: "Slot Problem",          url: "/videos/training/Training 1/Slot Problem.mp4",          thumbnail: "/thumbs/training_thumb/training_2/slot_problem_thumb.jpg" },
-  { id: "t1_4", title: "Snout Wash Day",        url: "/videos/training/Training 1/Snout Wash Day.mp4",        thumbnail: "/thumbs/training_thumb/training_2/snout_wash_day_thumb.jpg" },
-];
-
-export const TRAINING_VIDEOS_2: Video[] = [
-  { id: "t2_1", title: "Daniel the Tiger",         url: "/videos/training/Training 2/Daniel the Tiger 5 mins.mp4",         thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
-  { id: "t2_2", title: "Lyla in the Loop",         url: "/videos/training/Training 2/Lyla in the Loop.mp4",                thumbnail: "/thumbs/training_thumb/training_1/Lyla in the Loop thumb.jpg" },
-  { id: "t2_3", title: "Ready Jet Go",             url: "/videos/training/Training 2/Ready Jet Go 5 mins.mp4",             thumbnail: "/thumbs/training_thumb/training_1/Ready Jet Go 5 mins thumb.jpg" },
-  { id: "t2_4", title: "Sid the Science Reporter", url: "/videos/training/Training 2/Sid the Science Reporter 5 mins.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
+export const TRAINING_VIDEOS: Video[] = [
+  { id: "t_1", title: "Daniel Tiger",        url: "/videos/training/short_training/Daniel Tiger 30 seconds.mp4",       thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
+  { id: "t_2", title: "Lyla in the Loop",    url: "/videos/training/short_training/Lyla in the loops 30 seconds.mp4",  thumbnail: "/thumbs/training_thumb/training_1/Lyla in the Loop thumb.jpg" },
+  { id: "t_3", title: "Ready Jet Go",        url: "/videos/training/short_training/Ready Jet Go 30 seconds.mp4",       thumbnail: "/thumbs/training_thumb/training_1/Ready Jet Go 5 mins thumb.jpg" },
+  { id: "t_4", title: "Sid the Science Kid", url: "/videos/training/short_training/Sid the Science Kid 30 seconds.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
 ];
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
