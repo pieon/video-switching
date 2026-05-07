@@ -15,7 +15,6 @@ export default function ResearcherPage() {
   const [newParticipantId, setNewParticipantId] = useState('');
   const [newCondition, setNewCondition] = useState<'switching' | 'non_switching'>('switching');
   const [newVideoSet, setNewVideoSet] = useState<'A' | 'B'>('A');
-  const [newTrainingGroup, setNewTrainingGroup] = useState<'1' | '2'>('1');
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -60,7 +59,6 @@ export default function ResearcherPage() {
           participantId: newParticipantId.trim(),
           condition: newCondition,
           videoSet: newVideoSet,
-          trainingGroup: newTrainingGroup,
         }),
       });
 
@@ -74,7 +72,6 @@ export default function ResearcherPage() {
       setNewParticipantId('');
       setNewCondition('switching');
       setNewVideoSet('A');
-      setNewTrainingGroup('1');
       fetchParticipants();
 
       // Close form after 2 seconds
@@ -256,33 +253,6 @@ export default function ResearcherPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: 8,
-                  fontWeight: 600,
-                }}
-              >
-                Training Group:
-              </label>
-              <select
-                value={newTrainingGroup}
-                onChange={(e) => setNewTrainingGroup(e.target.value as '1' | '2')}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  fontSize: 16,
-                  border: '1px solid #ddd',
-                  borderRadius: 6,
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="1">Group 1 — Training 2 repeats training videos</option>
-                <option value="2">Group 2 — Training 2 uses experiment videos</option>
-              </select>
-            </div>
-
             <Button
               onClick={handleCreateParticipant}
               variant="primary"
@@ -377,7 +347,6 @@ export default function ResearcherPage() {
                 <th style={{ padding: 12, textAlign: 'left' }}>Participant ID</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Starting Mode</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Starting Set</th>
-                <th style={{ padding: 12, textAlign: 'left' }}>Training Group</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Sessions</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Created</th>
                 <th style={{ padding: 12 }}></th>
@@ -417,18 +386,6 @@ export default function ResearcherPage() {
                       color: p.videoSet === 'A' ? '#2E7D32' : '#C62828',
                     }}>
                       Set {p.videoSet ?? '—'}
-                    </span>
-                  </td>
-                  <td style={{ padding: 12 }}>
-                    <span style={{
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      background: p.trainingGroup === '1' ? '#E0F7FA' : '#FFF3E0',
-                      color: p.trainingGroup === '1' ? '#00695C' : '#E65100',
-                    }}>
-                      Group {p.trainingGroup ?? '—'}
                     </span>
                   </td>
                   <td style={{ padding: 12 }}>{p._count?.sessions || 0}</td>

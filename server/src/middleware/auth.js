@@ -29,7 +29,6 @@ async function authenticate(req, res, next) {
         participantId: true,
         condition: true,
         videoSet: true,
-        trainingGroup: true,
         createdAt: true,
       },
     });
