@@ -128,10 +128,13 @@ The pages in `pages/` are intended to be visited in this order, and each one ass
 All assets live under `public/` and are referenced from [src/utils/constants.ts](src/utils/constants.ts):
 
 - Experiment videos: `public/videos/stimulant/1_SET A/` and `2_SET B/`
-- Training videos: `public/videos/training/Training 1/` and `Training 2/`
+- Training videos:
+  - `public/videos/training/Training 1/` — 5-min set 1 (Daniel Tiger / Lyla / Ready Jet Go / Sid)
+  - `public/videos/training/test_training/` — 5-sec versions of set 1 (same content, shorter)
+  - `public/videos/training/Training 2/` — 5-min set 2 (House Ants / Search String / Slot / Snout Wash)
 - Thumbnails: `public/thumbs/stimulant_thumb/Set_A|Set_B/` and `public/thumbs/training_thumb/training_1|training_2/`
 
-**Important quirk:** the training thumbnail folders are content-mapped, not index-mapped — `training_1/` thumbs go with `Training 2/` videos, and vice versa. Match by content (filename) when adding/editing entries, not by folder index.
+Folder-index and content match for training: `training_1/` thumbs go with `Training 1/` and `test_training/` videos; `training_2/` thumbs go with `Training 2/` videos. (An earlier inversion was reorganized; constants in [src/utils/constants.ts](src/utils/constants.ts) reflect the current layout.)
 
 ## Recording behavior
 

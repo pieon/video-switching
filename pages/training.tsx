@@ -1,4 +1,4 @@
-// Training session page - two back-to-back trainings before the experiment
+// Training session page - three-phase training before the experiment
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
@@ -6,10 +6,21 @@ import { VideoPlayer, VideoGrid } from '@/components/video';
 import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
-import { TRAINING_VIDEOS_1, TRAINING_VIDEOS_2, MOCK_VIDEOS } from '@/utils/constants';
-import { Mode, VideoSet, TrainingGroup } from '@/types';
+import {
+  TRAINING_VIDEOS_PHASE_1,
+  TRAINING_VIDEOS_PHASE_2,
+  TRAINING_VIDEOS_PHASE_3,
+} from '@/utils/constants';
+import { Mode } from '@/types';
 
-type Phase = 'intro1' | 'playing1' | 'intro2' | 'playing2' | 'complete';
+type Phase =
+  | 'intro1'
+  | 'playing1'
+  | 'intro2'
+  | 'playing2'
+  | 'intro3'
+  | 'playing3'
+  | 'complete';
 
 export default function TrainingPage() {
   const router = useRouter();
@@ -18,12 +29,11 @@ export default function TrainingPage() {
   useExperimentTheme();
 
   const trainingMode = (router.query.mode as Mode) || 'non_switching';
-  const sessionSet = (router.query.set as VideoSet) || 'A';
-  const trainingGroup = (router.query.group as TrainingGroup) || '1';
 
   const [phase, setPhase] = useState<Phase>('intro1');
   const [completed1, setCompleted1] = useState<string[]>([]);
   const [completed2, setCompleted2] = useState<string[]>([]);
+  const [completed3, setCompleted3] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
 
@@ -33,19 +43,24 @@ export default function TrainingPage() {
     }
   }, [user, isLoading, router]);
 
-  const training1Videos = TRAINING_VIDEOS_1;
-  const training2Videos = useMemo(
-    () => (trainingGroup === '1' ? TRAINING_VIDEOS_2 : MOCK_VIDEOS.filter(v => v.set === sessionSet)),
-    [trainingGroup, sessionSet]
-  );
+  const phaseVideos =
+    phase === 'intro1' || phase === 'playing1' ? TRAINING_VIDEOS_PHASE_1 :
+    phase === 'intro2' || phase === 'playing2' ? TRAINING_VIDEOS_PHASE_2 :
+    TRAINING_VIDEOS_PHASE_3;
 
-  const isPhase2 = phase === 'intro2' || phase === 'playing2';
-  const videos = isPhase2 ? training2Videos : training1Videos;
-  const completed = isPhase2 ? completed2 : completed1;
-  const setCompleted = isPhase2 ? setCompleted2 : setCompleted1;
+  const completed =
+    phase === 'intro1' || phase === 'playing1' ? completed1 :
+    phase === 'intro2' || phase === 'playing2' ? completed2 :
+    completed3;
+
+  const setCompleted =
+    phase === 'intro1' || phase === 'playing1' ? setCompleted1 :
+    phase === 'intro2' || phase === 'playing2' ? setCompleted2 :
+    setCompleted3;
+
   const currentVideo = useMemo(
-    () => videos.find(v => v.id === current) ?? null,
-    [videos, current]
+    () => phaseVideos.find(v => v.id === current) ?? null,
+    [phaseVideos, current]
   );
 
   const updatePlaybackPosition = useCallback((videoId: string, position: number) => {
@@ -56,24 +71,21 @@ export default function TrainingPage() {
     return playbackPositions[videoId] || 0;
   }, [playbackPositions]);
 
-  // Auto-advance Training 1 → intro2, and Training 2 → complete
+  // Auto-advance when all videos in the current playing phase are completed
   useEffect(() => {
-    if (phase === 'playing1') {
-      const allDone = training1Videos.every(v => completed1.includes(v.id));
-      if (allDone) {
-        setPhase('intro2');
-        setCurrent(null);
-        // Clear playback positions so Group 1's repeated videos start fresh in Training 2
-        setPlaybackPositions({});
-      }
-    } else if (phase === 'playing2') {
-      const allDone = training2Videos.every(v => completed2.includes(v.id));
-      if (allDone) {
-        setPhase('complete');
-        setCurrent(null);
-      }
+    if (phase === 'playing1' && TRAINING_VIDEOS_PHASE_1.every(v => completed1.includes(v.id))) {
+      setPhase('intro2');
+      setCurrent(null);
+      setPlaybackPositions({});
+    } else if (phase === 'playing2' && TRAINING_VIDEOS_PHASE_2.every(v => completed2.includes(v.id))) {
+      setPhase('intro3');
+      setCurrent(null);
+      setPlaybackPositions({});
+    } else if (phase === 'playing3' && TRAINING_VIDEOS_PHASE_3.every(v => completed3.includes(v.id))) {
+      setPhase('complete');
+      setCurrent(null);
     }
-  }, [phase, completed1, completed2, training1Videos, training2Videos]);
+  }, [phase, completed1, completed2, completed3]);
 
   const handleSelectVideo = (id: string) => {
     if (trainingMode === 'non_switching' && current && current !== id) return;
@@ -95,6 +107,10 @@ export default function TrainingPage() {
       setCurrent(null);
       setPlaybackPositions({});
     } else if (phase === 'playing2') {
+      setPhase('intro3');
+      setCurrent(null);
+      setPlaybackPositions({});
+    } else if (phase === 'playing3') {
       setPhase('complete');
       setCurrent(null);
     }
@@ -112,12 +128,12 @@ export default function TrainingPage() {
 
   const isSwitching = trainingMode === 'switching';
 
-  // Intro 1 — first training
+  // Intro 1
   if (phase === 'intro1') {
     return (
       <PageLayout maxWidth={700}>
         <Card style={{ marginTop: 48, textAlign: 'center' }}>
-          <h1 style={{ marginTop: 0, color: '#333' }}>Training 1 of 2</h1>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training 1 of 3</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
           </p>
@@ -156,19 +172,34 @@ export default function TrainingPage() {
     );
   }
 
-  // Intro 2 — second training transition
+  // Intro 2
   if (phase === 'intro2') {
-    const group2Text = `You will now practice with the videos you will see in the experiment.`;
-    const group1Text = `You will now practice again with the same videos.`;
     return (
       <PageLayout maxWidth={700}>
         <Card style={{ marginTop: 48, textAlign: 'center' }}>
-          <h1 style={{ marginTop: 0, color: '#333' }}>Training 2 of 2</h1>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training 2 of 3</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
-            {trainingGroup === '2' ? group2Text : group1Text}
+            Now you'll practice with shorter clips of the same videos.
           </p>
           <Button onClick={() => setPhase('playing2')} size="large">
             Start Training 2
+          </Button>
+        </Card>
+      </PageLayout>
+    );
+  }
+
+  // Intro 3
+  if (phase === 'intro3') {
+    return (
+      <PageLayout maxWidth={700}>
+        <Card style={{ marginTop: 48, textAlign: 'center' }}>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training 3 of 3</h1>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
+            Now you'll practice with a different set of videos before the experiment.
+          </p>
+          <Button onClick={() => setPhase('playing3')} size="large">
+            Start Training 3
           </Button>
         </Card>
       </PageLayout>
@@ -184,7 +215,7 @@ export default function TrainingPage() {
             Training Complete!
           </h2>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
-            You've completed both training sessions. You're now ready for the experiment.
+            You've completed all three training sessions. You're now ready for the experiment.
           </p>
           <Button onClick={() => router.push('/player')} size="large">
             Start Experiment
@@ -194,8 +225,8 @@ export default function TrainingPage() {
     );
   }
 
-  // Active training (playing1 or playing2)
-  const trainingNumber = phase === 'playing2' ? 2 : 1;
+  // Active training (playing1 / playing2 / playing3)
+  const trainingNumber = phase === 'playing3' ? 3 : phase === 'playing2' ? 2 : 1;
   const phaseLabel = `Training ${trainingNumber}: ${isSwitching ? 'Switching' : 'Non-Switching'} Mode`;
 
   return (
@@ -251,7 +282,7 @@ export default function TrainingPage() {
         </div>
 
         <VideoGrid
-          videos={videos}
+          videos={phaseVideos}
           completed={completed}
           current={current}
           mode={trainingMode}
