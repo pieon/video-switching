@@ -1,4 +1,4 @@
-// Training session page - three-phase training before the experiment
+// Training session page — short (one phase) or full (three phases), per user.trainingType
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
@@ -7,28 +7,143 @@ import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import {
+  TRAINING_VIDEOS_SHORT,
   TRAINING_VIDEOS_PHASE_1,
   TRAINING_VIDEOS_PHASE_2,
   TRAINING_VIDEOS_PHASE_3,
 } from '@/utils/constants';
-import { Mode } from '@/types';
-
-type Phase =
-  | 'intro1'
-  | 'playing1'
-  | 'intro2'
-  | 'playing2'
-  | 'intro3'
-  | 'playing3'
-  | 'complete';
+import { Mode, TrainingType, Video } from '@/types';
 
 export default function TrainingPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-
   useExperimentTheme();
 
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || !user) {
+    return (
+      <PageLayout>
+        <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div>
+      </PageLayout>
+    );
+  }
+
+  // Prefer URL param (set by admin.tsx) over the user record so a researcher
+  // can override per-run if needed; fall back to the user's assigned type.
+  const trainingType =
+    (router.query.trainingType as TrainingType | undefined) ??
+    user.trainingType ??
+    'full';
+
+  return trainingType === 'short' ? <TrainingShort /> : <TrainingFull />;
+}
+
+// ---------------------------------------------------------------------------
+// Short training — single phase
+// ---------------------------------------------------------------------------
+function TrainingShort() {
+  const router = useRouter();
   const trainingMode = (router.query.mode as Mode) || 'non_switching';
+
+  type Phase = 'intro' | 'playing' | 'complete';
+  const [phase, setPhase] = useState<Phase>('intro');
+  const [completed, setCompleted] = useState<string[]>([]);
+  const [current, setCurrent] = useState<string | null>(null);
+  const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
+
+  const videos = TRAINING_VIDEOS_SHORT;
+
+  const currentVideo = useMemo(
+    () => videos.find(v => v.id === current) ?? null,
+    [videos, current]
+  );
+
+  const updatePlaybackPosition = useCallback((videoId: string, position: number) => {
+    setPlaybackPositions(prev => ({ ...prev, [videoId]: position }));
+  }, []);
+
+  const getPlaybackPosition = useCallback((videoId: string) => {
+    return playbackPositions[videoId] || 0;
+  }, [playbackPositions]);
+
+  useEffect(() => {
+    if (phase === 'playing' && videos.every(v => completed.includes(v.id))) {
+      setPhase('complete');
+      setCurrent(null);
+    }
+  }, [phase, completed, videos]);
+
+  const isSwitching = trainingMode === 'switching';
+
+  if (phase === 'intro') {
+    return (
+      <PageLayout maxWidth={700}>
+        <Card style={{ marginTop: 48, textAlign: 'center' }}>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training</h1>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
+            Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
+          </p>
+          <ModeBlurb isSwitching={isSwitching} />
+          <Button onClick={() => setPhase('playing')} size="large">
+            Start Training
+          </Button>
+        </Card>
+      </PageLayout>
+    );
+  }
+
+  if (phase === 'complete') {
+    return <TrainingCompleteCard onContinue={() => router.push('/player')} />;
+  }
+
+  return (
+    <PlayingView
+      phaseLabel={`Training: ${isSwitching ? 'Switching' : 'Non-Switching'} Mode`}
+      isSwitching={isSwitching}
+      videos={videos}
+      completed={completed}
+      current={current}
+      currentVideo={currentVideo}
+      trainingMode={trainingMode}
+      onSelectVideo={(id) => {
+        if (trainingMode === 'non_switching' && current && current !== id) return;
+        if (completed.includes(id)) return;
+        setCurrent(id);
+      }}
+      onVideoEnded={() => {
+        if (currentVideo) {
+          setCompleted(prev => [...prev, currentVideo.id]);
+          setPlaybackPositions(prev => ({ ...prev, [currentVideo.id]: 0 }));
+          setCurrent(null);
+        }
+      }}
+      onForceSkip={() => {
+        setPhase('complete');
+        setCurrent(null);
+      }}
+      updatePlaybackPosition={updatePlaybackPosition}
+      getPlaybackPosition={getPlaybackPosition}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Full training — three phases
+// ---------------------------------------------------------------------------
+function TrainingFull() {
+  const router = useRouter();
+  const trainingMode = (router.query.mode as Mode) || 'non_switching';
+
+  type Phase =
+    | 'intro1' | 'playing1'
+    | 'intro2' | 'playing2'
+    | 'intro3' | 'playing3'
+    | 'complete';
 
   const [phase, setPhase] = useState<Phase>('intro1');
   const [completed1, setCompleted1] = useState<string[]>([]);
@@ -36,12 +151,6 @@ export default function TrainingPage() {
   const [completed3, setCompleted3] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/');
-    }
-  }, [user, isLoading, router]);
 
   const phaseVideos =
     phase === 'intro1' || phase === 'playing1' ? TRAINING_VIDEOS_PHASE_1 :
@@ -71,7 +180,6 @@ export default function TrainingPage() {
     return playbackPositions[videoId] || 0;
   }, [playbackPositions]);
 
-  // Auto-advance when all videos in the current playing phase are completed
   useEffect(() => {
     if (phase === 'playing1' && TRAINING_VIDEOS_PHASE_1.every(v => completed1.includes(v.id))) {
       setPhase('intro2');
@@ -87,48 +195,8 @@ export default function TrainingPage() {
     }
   }, [phase, completed1, completed2, completed3]);
 
-  const handleSelectVideo = (id: string) => {
-    if (trainingMode === 'non_switching' && current && current !== id) return;
-    if (completed.includes(id)) return;
-    setCurrent(id);
-  };
-
-  const handleVideoEnded = () => {
-    if (currentVideo) {
-      setCompleted(prev => [...prev, currentVideo.id]);
-      setPlaybackPositions(prev => ({ ...prev, [currentVideo.id]: 0 }));
-      setCurrent(null);
-    }
-  };
-
-  const handleForceSkip = () => {
-    if (phase === 'playing1') {
-      setPhase('intro2');
-      setCurrent(null);
-      setPlaybackPositions({});
-    } else if (phase === 'playing2') {
-      setPhase('intro3');
-      setCurrent(null);
-      setPlaybackPositions({});
-    } else if (phase === 'playing3') {
-      setPhase('complete');
-      setCurrent(null);
-    }
-  };
-
-  const noop = () => {};
-
-  if (isLoading || !user) {
-    return (
-      <PageLayout>
-        <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div>
-      </PageLayout>
-    );
-  }
-
   const isSwitching = trainingMode === 'switching';
 
-  // Intro 1
   if (phase === 'intro1') {
     return (
       <PageLayout maxWidth={700}>
@@ -137,33 +205,7 @@ export default function TrainingPage() {
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
           </p>
-          <div style={{
-            background: isSwitching ? '#e8f5e9' : '#e3f2fd',
-            border: `1px solid ${isSwitching ? '#4caf50' : '#2196F3'}`,
-            borderRadius: 8,
-            padding: 20,
-            marginBottom: 24,
-            textAlign: 'left',
-          }}>
-            <h3 style={{ marginTop: 0, color: isSwitching ? '#2e7d32' : '#1565c0' }}>
-              {isSwitching ? 'Switching Mode' : 'Non-Switching Mode'}
-            </h3>
-            <ul style={{ margin: 0, paddingLeft: 20, color: '#333', lineHeight: 1.8 }}>
-              {isSwitching ? (
-                <>
-                  <li>Full video controls are available (play, pause, seek)</li>
-                  <li>You can freely switch between videos at any time</li>
-                  <li>You can fast-forward or rewind within a video</li>
-                </>
-              ) : (
-                <>
-                  <li>You must watch each video completely before moving on</li>
-                  <li>No seeking or fast-forwarding allowed</li>
-                  <li>You cannot switch to another video while one is playing</li>
-                </>
-              )}
-            </ul>
-          </div>
+          <ModeBlurb isSwitching={isSwitching} />
           <Button onClick={() => setPhase('playing1')} size="large">
             Start Training 1
           </Button>
@@ -172,7 +214,6 @@ export default function TrainingPage() {
     );
   }
 
-  // Intro 2
   if (phase === 'intro2') {
     return (
       <PageLayout maxWidth={700}>
@@ -189,7 +230,6 @@ export default function TrainingPage() {
     );
   }
 
-  // Intro 3
   if (phase === 'intro3') {
     return (
       <PageLayout maxWidth={700}>
@@ -206,36 +246,117 @@ export default function TrainingPage() {
     );
   }
 
-  // Complete — go to experiment
   if (phase === 'complete') {
-    return (
-      <PageLayout maxWidth={700}>
-        <Card style={{ marginTop: 48, textAlign: 'center' }}>
-          <h2 style={{ marginTop: 0, color: '#4caf50' }}>
-            Training Complete!
-          </h2>
-          <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
-            You've completed all three training sessions. You're now ready for the experiment.
-          </p>
-          <Button onClick={() => router.push('/player')} size="large">
-            Start Experiment
-          </Button>
-        </Card>
-      </PageLayout>
-    );
+    return <TrainingCompleteCard onContinue={() => router.push('/player')} message="You've completed all three training sessions. You're now ready for the experiment." />;
   }
 
-  // Active training (playing1 / playing2 / playing3)
   const trainingNumber = phase === 'playing3' ? 3 : phase === 'playing2' ? 2 : 1;
-  const phaseLabel = `Training ${trainingNumber}: ${isSwitching ? 'Switching' : 'Non-Switching'} Mode`;
 
   return (
+    <PlayingView
+      phaseLabel={`Training ${trainingNumber}: ${isSwitching ? 'Switching' : 'Non-Switching'} Mode`}
+      isSwitching={isSwitching}
+      videos={phaseVideos}
+      completed={completed}
+      current={current}
+      currentVideo={currentVideo}
+      trainingMode={trainingMode}
+      onSelectVideo={(id) => {
+        if (trainingMode === 'non_switching' && current && current !== id) return;
+        if (completed.includes(id)) return;
+        setCurrent(id);
+      }}
+      onVideoEnded={() => {
+        if (currentVideo) {
+          setCompleted(prev => [...prev, currentVideo.id]);
+          setPlaybackPositions(prev => ({ ...prev, [currentVideo.id]: 0 }));
+          setCurrent(null);
+        }
+      }}
+      onForceSkip={() => {
+        if (phase === 'playing1') { setPhase('intro2'); setPlaybackPositions({}); }
+        else if (phase === 'playing2') { setPhase('intro3'); setPlaybackPositions({}); }
+        else if (phase === 'playing3') { setPhase('complete'); }
+        setCurrent(null);
+      }}
+      updatePlaybackPosition={updatePlaybackPosition}
+      getPlaybackPosition={getPlaybackPosition}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared UI bits
+// ---------------------------------------------------------------------------
+function ModeBlurb({ isSwitching }: { isSwitching: boolean }) {
+  return (
+    <div style={{
+      background: isSwitching ? '#e8f5e9' : '#e3f2fd',
+      border: `1px solid ${isSwitching ? '#4caf50' : '#2196F3'}`,
+      borderRadius: 8,
+      padding: 20,
+      marginBottom: 24,
+      textAlign: 'left',
+    }}>
+      <h3 style={{ marginTop: 0, color: isSwitching ? '#2e7d32' : '#1565c0' }}>
+        {isSwitching ? 'Switching Mode' : 'Non-Switching Mode'}
+      </h3>
+      <ul style={{ margin: 0, paddingLeft: 20, color: '#333', lineHeight: 1.8 }}>
+        {isSwitching ? (
+          <>
+            <li>Full video controls are available (play, pause, seek)</li>
+            <li>You can freely switch between videos at any time</li>
+            <li>You can fast-forward or rewind within a video</li>
+          </>
+        ) : (
+          <>
+            <li>You must watch each video completely before moving on</li>
+            <li>No seeking or fast-forwarding allowed</li>
+            <li>You cannot switch to another video while one is playing</li>
+          </>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+function TrainingCompleteCard({ onContinue, message }: { onContinue: () => void; message?: string }) {
+  return (
+    <PageLayout maxWidth={700}>
+      <Card style={{ marginTop: 48, textAlign: 'center' }}>
+        <h2 style={{ marginTop: 0, color: '#4caf50' }}>Training Complete!</h2>
+        <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
+          {message ?? "You're now ready for the experiment."}
+        </p>
+        <Button onClick={onContinue} size="large">Start Experiment</Button>
+      </Card>
+    </PageLayout>
+  );
+}
+
+interface PlayingViewProps {
+  phaseLabel: string;
+  isSwitching: boolean;
+  videos: Video[];
+  completed: string[];
+  current: string | null;
+  currentVideo: Video | null;
+  trainingMode: Mode;
+  onSelectVideo: (id: string) => void;
+  onVideoEnded: () => void;
+  onForceSkip: () => void;
+  updatePlaybackPosition: (id: string, position: number) => void;
+  getPlaybackPosition: (id: string) => number;
+}
+
+function PlayingView({
+  phaseLabel, isSwitching, videos, completed, current, currentVideo, trainingMode,
+  onSelectVideo, onVideoEnded, onForceSkip, updatePlaybackPosition, getPlaybackPosition,
+}: PlayingViewProps) {
+  const noop = () => {};
+  return (
     <PageLayout maxWidth={1400}>
-      <div style={{
-        textAlign: 'center',
-        padding: '12px 0',
-        marginBottom: 8,
-      }}>
+      <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 8 }}>
         <span style={{
           display: 'inline-block',
           padding: '6px 16px',
@@ -249,7 +370,7 @@ export default function TrainingPage() {
           {phaseLabel}
         </span>
         <button
-          onClick={handleForceSkip}
+          onClick={onForceSkip}
           style={{
             marginLeft: 12,
             padding: '6px 14px',
@@ -272,7 +393,7 @@ export default function TrainingPage() {
             mode={trainingMode}
             video={currentVideo}
             sessionId={null}
-            onEnded={handleVideoEnded}
+            onEnded={onVideoEnded}
             onPlay={noop}
             onPause={noop}
             onPauseEnd={noop}
@@ -280,13 +401,12 @@ export default function TrainingPage() {
             getPlaybackPosition={getPlaybackPosition}
           />
         </div>
-
         <VideoGrid
-          videos={phaseVideos}
+          videos={videos}
           completed={completed}
           current={current}
           mode={trainingMode}
-          onSelectVideo={handleSelectVideo}
+          onSelectVideo={onSelectVideo}
         />
       </main>
     </PageLayout>

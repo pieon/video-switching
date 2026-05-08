@@ -18,6 +18,7 @@ model User {
   participantId String         @unique
   condition     String         // "switching" or "non_switching"
   videoSet      String         @default("A") // "A" or "B"
+  trainingType  String         @default("full") // "short" (one phase) or "full" (three phases)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   sessions      VideoSession[]

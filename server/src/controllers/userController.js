@@ -7,7 +7,7 @@ const { generateToken } = require('../utils/jwt');
  */
 async function createParticipant(req, res) {
   try {
-    const { participantId, condition, videoSet = 'A' } = req.body;
+    const { participantId, condition, videoSet = 'A', trainingType = 'full' } = req.body;
 
     // Validate input
     if (!participantId || !condition) {
@@ -31,6 +31,13 @@ async function createParticipant(req, res) {
       });
     }
 
+    if (!['short', 'full'].includes(trainingType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'trainingType must be either "short" or "full"',
+      });
+    }
+
     // Check if participant already exists
     const existing = await prisma.user.findUnique({
       where: { participantId },
@@ -49,12 +56,14 @@ async function createParticipant(req, res) {
         participantId,
         condition,
         videoSet,
+        trainingType,
       },
       select: {
         id: true,
         participantId: true,
         condition: true,
         videoSet: true,
+        trainingType: true,
         createdAt: true,
       },
     });
@@ -98,6 +107,7 @@ async function loginParticipant(req, res) {
         participantId: true,
         condition: true,
         videoSet: true,
+        trainingType: true,
         createdAt: true,
       },
     });
@@ -161,6 +171,7 @@ async function getAllParticipants(req, res) {
         participantId: true,
         condition: true,
         videoSet: true,
+        trainingType: true,
         createdAt: true,
         _count: {
           select: {

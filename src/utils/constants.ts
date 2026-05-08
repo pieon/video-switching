@@ -38,4 +38,12 @@ export const TRAINING_VIDEOS_PHASE_3: Video[] = [
   { id: "p3_4", title: "Snout Wash Day",        url: "/videos/training/Training 2/Snout Wash Day.mp4",        thumbnail: "/thumbs/training_thumb/training_2/snout_wash_day_thumb.jpg" },
 ];
 
+// Short training (single phase) — 30-second clips of set 1, reusing Phase 1 thumbs
+export const TRAINING_VIDEOS_SHORT: Video[] = [
+  { id: "ts_1", title: "Daniel Tiger",        url: "/videos/training/short_training/Daniel Tiger 30 seconds.mp4",        thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
+  { id: "ts_2", title: "Lyla in the Loop",    url: "/videos/training/short_training/Lyla in the loops 30 seconds.mp4",   thumbnail: "/thumbs/training_thumb/training_1/Lyla in the Loop thumb.jpg" },
+  { id: "ts_3", title: "Ready Jet Go",        url: "/videos/training/short_training/Ready Jet Go 30 seconds.mp4",        thumbnail: "/thumbs/training_thumb/training_1/Ready Jet Go 5 mins thumb.jpg" },
+  { id: "ts_4", title: "Sid the Science Kid", url: "/videos/training/short_training/Sid the Science Kid 30 seconds.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
+];
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';

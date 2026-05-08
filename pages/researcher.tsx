@@ -15,6 +15,7 @@ export default function ResearcherPage() {
   const [newParticipantId, setNewParticipantId] = useState('');
   const [newCondition, setNewCondition] = useState<'switching' | 'non_switching'>('switching');
   const [newVideoSet, setNewVideoSet] = useState<'A' | 'B'>('A');
+  const [newTrainingType, setNewTrainingType] = useState<'short' | 'full'>('full');
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export default function ResearcherPage() {
           participantId: newParticipantId.trim(),
           condition: newCondition,
           videoSet: newVideoSet,
+          trainingType: newTrainingType,
         }),
       });
 
@@ -72,6 +74,7 @@ export default function ResearcherPage() {
       setNewParticipantId('');
       setNewCondition('switching');
       setNewVideoSet('A');
+      setNewTrainingType('full');
       fetchParticipants();
 
       // Close form after 2 seconds
@@ -253,6 +256,33 @@ export default function ResearcherPage() {
               </div>
             </div>
 
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Training Type:
+              </label>
+              <select
+                value={newTrainingType}
+                onChange={(e) => setNewTrainingType(e.target.value as 'short' | 'full')}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: 16,
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="full">Full — three phases (5-min, 5-sec, set 2)</option>
+                <option value="short">Short — single phase (30-second clips)</option>
+              </select>
+            </div>
+
             <Button
               onClick={handleCreateParticipant}
               variant="primary"
@@ -347,6 +377,7 @@ export default function ResearcherPage() {
                 <th style={{ padding: 12, textAlign: 'left' }}>Participant ID</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Starting Mode</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Starting Set</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Training</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Sessions</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Created</th>
                 <th style={{ padding: 12 }}></th>
@@ -386,6 +417,18 @@ export default function ResearcherPage() {
                       color: p.videoSet === 'A' ? '#2E7D32' : '#C62828',
                     }}>
                       Set {p.videoSet ?? '—'}
+                    </span>
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: p.trainingType === 'short' ? '#FFF3E0' : '#E0F7FA',
+                      color: p.trainingType === 'short' ? '#E65100' : '#00695C',
+                    }}>
+                      {p.trainingType === 'short' ? 'Short' : 'Full'}
                     </span>
                   </td>
                   <td style={{ padding: 12 }}>{p._count?.sessions || 0}</td>
