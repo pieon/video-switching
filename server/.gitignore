@@ -27,9 +27,9 @@ Thumbs.db
 *~
 
 # Prisma
-prisma/
-prisma/migrations/*_migration/
-!prisma/migrations/migration_lock.toml
+# prisma/
+# prisma/migrations/*_migration/
+# !prisma/migrations/migration_lock.toml
 
 # Build
 dist/
