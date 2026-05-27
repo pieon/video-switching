@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  basePath: '/video',           // ← add
+  assetPrefix: '/video',        // ← add
   // swcMinify is now enabled by default in Next.js 16+
 
   // Uncomment for static export deployment

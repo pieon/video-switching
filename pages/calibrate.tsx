@@ -448,7 +448,11 @@ export default function CalibratePage() {
                 aria-label={`Calibration point ${point.id}`}
               >
                 <img
-                  src={isCompleted ? '/Images/GreenFlowerSprite.png' : '/Images/BlueFlowerSprite.png'}
+                  src={
+                    isCompleted ? '/Images/greenflower.png' :
+                    isActive    ? '/Images/yellowflower.png' :
+                                  '/Images/blueflower.png'
+                  }
                   alt=""
                   style={{
                     width: '100%',
