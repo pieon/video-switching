@@ -87,8 +87,8 @@ export function VideoPlayer({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          height: 540,
-          width: 1000,
+          height: 648,
+          width: 1200,
         }}
       >
         Choose a video to start
@@ -127,7 +127,7 @@ export function VideoPlayer({
             }
           }}
           controls={false}
-          style={{ width: "1000px", height: "540px", objectFit: "cover" }}
+          style={{ width: "1200px", height: "648px", objectFit: "cover" }}
           playsInline
         />
 
