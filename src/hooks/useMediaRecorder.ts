@@ -10,7 +10,7 @@ interface UseMediaRecorderReturn {
   isRecording: boolean;
   isInitializing: boolean;
   error: string | null;
-  startRecording: () => Promise<boolean>;
+  startRecording: (overrideDeviceId?: string) => Promise<boolean>;
   stopRecording: () => void;
 }
 
@@ -29,6 +29,12 @@ export function useMediaRecorder({
   const screenStreamRef = useRef<MediaStream | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
 
+  // Keep the latest participantId in a ref so filenames are correct even when
+  // stopRecording is triggered from a closure created before login (the
+  // provider mounts before the participant is known).
+  const participantIdRef = useRef(participantId);
+  participantIdRef.current = participantId;
+
   const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -40,7 +46,7 @@ export function useMediaRecorder({
     URL.revokeObjectURL(url);
   }, []);
 
-  const startRecording = useCallback(async (): Promise<boolean> => {
+  const startRecording = useCallback(async (overrideDeviceId?: string): Promise<boolean> => {
     setIsInitializing(true);
     setError(null);
     screenChunksRef.current = [];
@@ -55,8 +61,9 @@ export function useMediaRecorder({
       screenStreamRef.current = screenStream;
 
       // Request webcam (may already be in use by WebGazer, so we get a new stream)
-      const videoConstraints: MediaTrackConstraints = cameraDeviceId
-        ? { deviceId: { exact: cameraDeviceId } }
+      const deviceId = overrideDeviceId ?? cameraDeviceId;
+      const videoConstraints: MediaTrackConstraints = deviceId
+        ? { deviceId: { exact: deviceId } }
         : true as any;
       const webcamStream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
@@ -104,16 +111,17 @@ export function useMediaRecorder({
       setIsInitializing(false);
       return false;
     }
-  }, []);
+  }, [cameraDeviceId]);
 
   const stopRecording = useCallback(() => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const participant = participantIdRef.current;
 
     // Stop screen recorder
     if (screenRecorderRef.current && screenRecorderRef.current.state !== 'inactive') {
       screenRecorderRef.current.onstop = () => {
         const blob = new Blob(screenChunksRef.current, { type: 'video/webm' });
-        downloadBlob(blob, `screen_${participantId}_${timestamp}.webm`);
+        downloadBlob(blob, `screen_${participant}_${timestamp}.webm`);
       };
       screenRecorderRef.current.stop();
     }
@@ -122,7 +130,7 @@ export function useMediaRecorder({
     if (webcamRecorderRef.current && webcamRecorderRef.current.state !== 'inactive') {
       webcamRecorderRef.current.onstop = () => {
         const blob = new Blob(webcamChunksRef.current, { type: 'video/webm' });
-        downloadBlob(blob, `webcam_${participantId}_${timestamp}.webm`);
+        downloadBlob(blob, `webcam_${participant}_${timestamp}.webm`);
       };
       webcamRecorderRef.current.stop();
     }
@@ -138,7 +146,7 @@ export function useMediaRecorder({
     }
 
     setIsRecording(false);
-  }, [downloadBlob, participantId]);
+  }, [downloadBlob]);
 
   return {
     isRecording,

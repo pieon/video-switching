@@ -1,5 +1,5 @@
 // Video player page - Next.js
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, HamburgerMenu } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
@@ -8,7 +8,6 @@ import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useSession } from '@/hooks/useSession';
 import { useWebGazer, GazeData } from '@/hooks/useWebGazer';
 import { useGazeSectionTracker } from '@/hooks/useGazeSectionTracker';
-import { useMediaRecorder } from '@/hooks/useMediaRecorder';
 import { trackingService } from '@/services/trackingService';
 import { MOCK_VIDEOS } from '@/utils/constants';
 
@@ -27,22 +26,12 @@ export default function PlayerPage() {
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
-  const recordingStartedRef = useRef(false);
   const splitRatio = 0.67;
 
-  // Read saved camera selection from calibration page
+  // Read saved camera selection from the EEG page
   const cameraDeviceId = typeof window !== 'undefined'
     ? localStorage.getItem('selected_camera_device_id') || undefined
     : undefined;
-
-  // Media recording for screen and webcam
-  const {
-    startRecording,
-    stopRecording,
-  } = useMediaRecorder({
-    participantId: user?.participantId,
-    cameraDeviceId,
-  });
 
   // Gaze section tracking (top/bottom transitions)
   const { processGaze, saveAndClearTransitions } = useGazeSectionTracker({
@@ -81,27 +70,8 @@ export default function PlayerPage() {
     }
   }, [user, isLoading, router]);
 
-  // Auto-start recording on mount. Use a ref guard to ensure we never call
-  // startRecording twice — under React 18 StrictMode (dev), the effect runs
-  // mount → cleanup → mount, and a state-based guard isn't synchronous enough
-  // to block the second invocation before the screen-share prompt re-fires.
-  useEffect(() => {
-    if (user && !recordingStartedRef.current) {
-      recordingStartedRef.current = true;
-      startRecording();
-    }
-  }, [user, startRecording]);
-
-  // Stop recording when navigating away from the player page.
-  useEffect(() => {
-    const handleRouteChange = () => {
-      stopRecording();
-    };
-    router.events.on('routeChangeStart', handleRouteChange);
-    return () => {
-      router.events.off('routeChangeStart', handleRouteChange);
-    };
-  }, [router, stopRecording]);
+  // Recording is started on the EEG page and stopped on leaving this page by
+  // RecordingProvider, so the player no longer manages the recorder directly.
 
   const handleSelectVideo = async (id: string) => {
     // Block clicking other videos in non-switching mode while something is playing
