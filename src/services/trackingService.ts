@@ -1,7 +1,7 @@
 // Tracking service for video event logging
 
-// Get API URL from environment (Vite uses import.meta.env)
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
+// Get API URL from environment (Next.js inlines NEXT_PUBLIC_* at build time)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export interface TrackingEvent {
   sessionId: string;
