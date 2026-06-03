@@ -11,14 +11,17 @@ interface UseWebGazerOptions {
   onGazeUpdate?: (data: GazeData) => void;
   saveGazeData?: boolean;
   cameraDeviceId?: string;
+  enabled?: boolean;
 }
 
-export function useWebGazer({ onGazeUpdate, saveGazeData = false, cameraDeviceId }: UseWebGazerOptions = {}) {
+export function useWebGazer({ onGazeUpdate, saveGazeData = false, cameraDeviceId, enabled = true }: UseWebGazerOptions = {}) {
   const [isReady, setIsReady] = useState(false);
   const [isCalibrated, setIsCalibrated] = useState(false);
   const gazeDataRef = useRef<GazeData[]>([]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     let webgazer: any = null;
     let mounted = true;
 
@@ -245,7 +248,7 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false, cameraDeviceId
         }
       }
     };
-  }, [onGazeUpdate, saveGazeData, cameraDeviceId]);
+  }, [onGazeUpdate, saveGazeData, cameraDeviceId, enabled]);
 
   const startCalibration = () => {
     setIsCalibrated(false);

@@ -58,11 +58,13 @@ export default function CalibratePage() {
     setCameraConfirmed(true);
   };
 
-  // Only initialize WebGazer after camera is confirmed
-  const { isReady } = useWebGazer(cameraConfirmed ? {
+  // Only initialize WebGazer after camera is confirmed, so it starts once
+  // with the chosen device (avoids a teardown/re-init race on confirm).
+  const { isReady } = useWebGazer({
     saveGazeData: false,
     cameraDeviceId: selectedCameraId || undefined,
-  } : { saveGazeData: false });
+    enabled: cameraConfirmed,
+  });
 
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
   const [clicksRemaining, setClicksRemaining] = useState(5); // 5 clicks per point
@@ -440,7 +442,7 @@ export default function CalibratePage() {
                   padding: 0,
                   cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
-                  opacity: isCompleted ? 0.4 : isActive ? clickOpacity : 0.4,
+                  opacity: isCompleted ? 0.1 : isActive ? clickOpacity : 0.4,
                   animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label={`Calibration point ${point.id}`}
