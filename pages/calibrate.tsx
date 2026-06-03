@@ -282,7 +282,6 @@ export default function CalibratePage() {
       <Header
         title="Eye Tracking Calibration"
         showUserInfo
-        subtitle="Please calibrate your eye tracking for accurate data collection"
       >
         {/* WebGazer Status Indicator */}
         <div
@@ -354,12 +353,11 @@ export default function CalibratePage() {
         </Card>
       )}
 
-      {isReady && !isCalibrating && !isComplete && (
+      {cameraConfirmed && isReady && !isCalibrating && !isComplete && (
         <Card style={{ marginTop: 24, textAlign: 'center' }}>
           <h2 style={{ marginTop: 0 }}>Ready to Calibrate</h2>
           <p style={{ fontSize: 16, marginBottom: 16, color: '#666' }}>
-            You'll see 9 points on the screen. Hover over each point, wait for it to turn green,
-            then click. Repeat <strong>{CLICKS_PER_POINT} times</strong> per point.
+            You'll see 9 points on the screen. Stare at a point that turned <strong style={{ color: '#ffc107' }}>yellow</strong> but <strong>do not move your head</strong>.
           </p>
           <div style={{
             background: '#fff3cd',
@@ -374,7 +372,7 @@ export default function CalibratePage() {
             <ul style={{ textAlign: 'left', marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
               <li>Keep your head still during calibration</li>
               <li>Look directly at each point and wait for it to turn green before clicking</li>
-              <li>Sit at a comfortable distance from the screen (40-130 cm)</li>
+              <li>Sit at a comfortable distance from the screen (~40cm)</li>
               <li>Ensure good lighting on your face</li>
             </ul>
           </div>
@@ -442,7 +440,7 @@ export default function CalibratePage() {
                   padding: 0,
                   cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
-                  opacity: isCompleted ? 0.8 : isActive ? clickOpacity : 0.4,
+                  opacity: isCompleted ? 0.4 : isActive ? clickOpacity : 0.4,
                   animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label={`Calibration point ${point.id}`}
@@ -560,6 +558,7 @@ export default function CalibratePage() {
           box-shadow: none !important;
           opacity: 1 !important;
           image-rendering: pixelated;
+          display: ${isCalibrating || isMeasuringAccuracy ? 'block' : 'none'} !important;
         }
       `}</style>
 

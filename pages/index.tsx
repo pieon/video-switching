@@ -10,10 +10,10 @@ export default function LoginPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
-  // Redirect to calibration if already logged in
+  // Redirect to EEG setup if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      router.push('/calibrate');
+      router.push('/eeg');
     }
   }, [user, isLoading, router]);
 
