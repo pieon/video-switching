@@ -184,8 +184,10 @@ export default function CalibratePage() {
       console.log('[Accuracy] Waiting 5 seconds...');
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // Clear the listener
-      webgazer.setGazeListener(null);
+      // Restore WebGazer's default no-op listener. Passing null would make the
+      // (unguarded) internal prediction loop call null(...) → "callback is not
+      // a function".
+      webgazer.clearGazeListener();
 
       console.log('[Accuracy] 5s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
 
