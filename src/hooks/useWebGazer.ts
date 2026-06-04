@@ -225,6 +225,18 @@ export function useWebGazer({ onGazeUpdate, saveGazeData = false, cameraDeviceId
           webgazer.params.showFaceFeedbackBox = false;
         }
 
+        // TF.js reads width/height off #webgazerVideoCanvas in tf.browser.fromPixels.
+        // WebGazer sizes that canvas from a video event that can lag behind resume(),
+        // leaving it 0x0 → "Requested texture size [0x0] is invalid". Seed it from the
+        // ready video so the first processed frame always has valid dimensions.
+        const videoEl = document.querySelector('#webgazerVideoFeed') as HTMLVideoElement | null;
+        const canvasEl = document.querySelector('#webgazerVideoCanvas') as HTMLCanvasElement | null;
+        if (videoEl && canvasEl && videoEl.videoWidth > 0 &&
+            (canvasEl.width === 0 || canvasEl.height === 0)) {
+          canvasEl.width = videoEl.videoWidth;
+          canvasEl.height = videoEl.videoHeight;
+        }
+
         // Resume WebGazer now that video is ready
         webgazer.resume();
 
