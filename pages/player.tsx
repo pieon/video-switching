@@ -6,7 +6,8 @@ import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useSession } from '@/hooks/useSession';
-import { useWebGazer, GazeData } from '@/hooks/useWebGazer';
+import { GazeData } from '@/hooks/useWebGazer';
+import { useWebGazerContext } from '@/context/WebGazerContext';
 import { useGazeSectionTracker } from '@/hooks/useGazeSectionTracker';
 import { trackingService } from '@/services/trackingService';
 import { MOCK_VIDEOS } from '@/utils/constants';
@@ -39,16 +40,40 @@ export default function PlayerPage() {
     splitRatio,
   });
 
-  // WebGazer eye tracking integration
+  // WebGazer eye tracking integration (single persistent instance via context)
   const handleGazeUpdate = useCallback((data: GazeData) => {
     processGaze(data);
   }, [processGaze]);
 
-  const { getGazeData, clearGazeData } = useWebGazer({
-    onGazeUpdate: handleGazeUpdate,
-    saveGazeData: true,
-    cameraDeviceId,
-  });
+  const {
+    start: startWebGazer,
+    resume: resumeWebGazer,
+    pause: pauseWebGazer,
+    setGazeListener,
+    setSaveGazeData,
+    getGazeData,
+    clearGazeData,
+    isReady: webgazerReady,
+  } = useWebGazerContext();
+
+  // Ensure WebGazer is initialized (idempotent — usually already started during
+  // calibration; needed if the player is reached/reloaded without calibrating).
+  useEffect(() => {
+    startWebGazer(cameraDeviceId);
+  }, [startWebGazer, cameraDeviceId]);
+
+  // Route gaze samples to the section tracker and resume tracking while on this
+  // page; pause and detach on unmount (e.g. navigating back to /admin).
+  useEffect(() => {
+    setSaveGazeData(true);
+    setGazeListener(handleGazeUpdate);
+    if (webgazerReady) resumeWebGazer();
+    return () => {
+      setGazeListener(null);
+      setSaveGazeData(false);
+      pauseWebGazer();
+    };
+  }, [webgazerReady, handleGazeUpdate, setSaveGazeData, setGazeListener, resumeWebGazer, pauseWebGazer]);
 
   const { videoSet } = useAuth();
   const videos = useMemo(() => {

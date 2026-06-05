@@ -4,7 +4,8 @@ import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { useWebGazer } from '@/hooks/useWebGazer';
+import { GazeData } from '@/hooks/useWebGazer';
+import { useWebGazerContext } from '@/context/WebGazerContext';
 
 const CALIBRATION_POINTS = [
   { id: 1, x: 10, y: 10 }, // Top-left
@@ -33,11 +34,21 @@ export default function CalibratePage() {
     setSelectedCameraId(localStorage.getItem(CAMERA_STORAGE_KEY) ?? '');
   }, []);
 
-  const { isReady } = useWebGazer({
-    saveGazeData: false,
-    cameraDeviceId: selectedCameraId || undefined,
-    enabled: selectedCameraId !== null,
-  });
+  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData } = useWebGazerContext();
+
+  // Initialize the single persistent WebGazer instance once the chosen camera
+  // is known. start() is idempotent; resume()/pause() only run after it's ready.
+  useEffect(() => {
+    if (selectedCameraId === null) return;
+    start(selectedCameraId || undefined);
+  }, [selectedCameraId, start]);
+
+  useEffect(() => {
+    if (isReady) resume();
+    return () => {
+      pause();
+    };
+  }, [isReady, resume, pause]);
 
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
   const [clicksRemaining, setClicksRemaining] = useState(5); // 5 clicks per point
@@ -166,75 +177,54 @@ export default function CalibratePage() {
     const staringPointX = window.innerWidth / 2;
     const staringPointY = window.innerHeight / 2;
 
-    const WebGazerModule = typeof window !== 'undefined' ? await import('webgazer') : null;
-    const webgazer: any = WebGazerModule?.default;
-
-    if (webgazer) {
-      console.log('[Accuracy] WebGazer found');
-
-      // Collect gaze predictions via listener
-      const collectGaze = (data: any) => {
-        if (data && data.x && data.y) {
-          gazeCollectionRef.current.push({ x: data.x, y: data.y });
-        }
-      };
-      webgazer.setGazeListener(collectGaze);
-
-      // Wait 5 seconds while user stares at center dot
-      console.log('[Accuracy] Waiting 5 seconds...');
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      // Restore WebGazer's default no-op listener. Passing null would make the
-      // (unguarded) internal prediction loop call null(...) → "callback is not
-      // a function".
-      webgazer.clearGazeListener();
-
-      console.log('[Accuracy] 5s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
-
-      // Use the last 50 points (matching WebGazer's circular buffer size)
-      const points = gazeCollectionRef.current.slice(-50);
-      const xArray = points.map((p) => p.x);
-      const yArray = points.map((p) => p.y);
-
-      // Step 5: Calculate precision using WebGazer's method
-      let calculatedAccuracy = 50;
-
-      if (xArray.length > 0) {
-        calculatedAccuracy = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
-        console.log(
-          `Accuracy check: ${xArray.length} points, precision: ${calculatedAccuracy}%`
-        );
-      } else {
-        console.warn('No gaze data collected during accuracy check');
+    // Collect gaze predictions via the shared persistent listener.
+    const collectGaze = (data: GazeData) => {
+      if (data && data.x && data.y) {
+        gazeCollectionRef.current.push({ x: data.x, y: data.y });
       }
+    };
+    setGazeListener(collectGaze);
 
-      setAccuracyPercentage(calculatedAccuracy);
-      setIsMeasuringAccuracy(false);
-      setIsComplete(true);
+    // Wait 5 seconds while user stares at center dot
+    console.log('[Accuracy] Waiting 5 seconds...');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // Auto-proceed if accuracy >= 70%
-      if (calculatedAccuracy >= 70) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        router.push('/admin');
-      }
+    setGazeListener(null);
+
+    console.log('[Accuracy] 5s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
+
+    // Use the last 50 points (matching WebGazer's circular buffer size)
+    const points = gazeCollectionRef.current.slice(-50);
+    const xArray = points.map((p) => p.x);
+    const yArray = points.map((p) => p.y);
+
+    // Step 5: Calculate precision using WebGazer's method
+    let calculatedAccuracy = 50;
+
+    if (xArray.length > 0) {
+      calculatedAccuracy = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
+      console.log(
+        `Accuracy check: ${xArray.length} points, precision: ${calculatedAccuracy}%`
+      );
     } else {
-      console.warn('[Accuracy] WebGazer NOT found on window');
-      // Fallback if webgazer not available
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      setAccuracyPercentage(50);
-      setIsMeasuringAccuracy(false);
-      setIsComplete(true);
+      console.warn('No gaze data collected during accuracy check');
+    }
+
+    setAccuracyPercentage(calculatedAccuracy);
+    setIsMeasuringAccuracy(false);
+    setIsComplete(true);
+
+    // Auto-proceed if accuracy >= 70%
+    if (calculatedAccuracy >= 70) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      router.push('/admin');
     }
   };
 
-  const handleRecalibrate = async () => {
+  const handleRecalibrate = () => {
     setIsComplete(false);
     setAccuracyPercentage(null);
-    if (typeof window !== 'undefined') {
-      const WGModule = await import('webgazer');
-      const wg: any = WGModule.default;
-      if (wg) wg.clearData();
-    }
+    clearCalibrationData();
     startCalibration();
   };
 
@@ -383,7 +373,7 @@ export default function CalibratePage() {
                   padding: 0,
                   cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
-                  opacity: isCompleted ? 0.1 : isActive ? clickOpacity : 0.4,
+                  opacity: isCompleted ? 0.0 : isActive ? clickOpacity : 0.0,
                   animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label={`Calibration point ${point.id}`}
