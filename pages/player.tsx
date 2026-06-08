@@ -1,5 +1,5 @@
 // Video player page - Next.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, HamburgerMenu } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
@@ -27,7 +27,10 @@ export default function PlayerPage() {
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
-  const splitRatio = 0.67;
+  // Top/bottom split for gaze tracking. Measured to sit in the gap between the
+  // video player and the suggested-videos grid (see effect below).
+  const [splitRatio, setSplitRatio] = useState(0.7);
+  const playerAreaRef = useRef<HTMLDivElement>(null);
 
   // Read saved camera selection from the EEG page
   const cameraDeviceId = typeof window !== 'undefined'
@@ -75,6 +78,16 @@ export default function PlayerPage() {
     };
   }, [webgazerReady, handleGazeUpdate, setSaveGazeData, setGazeListener, resumeWebGazer, pauseWebGazer]);
 
+  // Flush any buffered gaze transitions when leaving the page (navigation or
+  // tab close), so data isn't lost if a video wasn't finished.
+  useEffect(() => {
+    window.addEventListener('beforeunload', saveAndClearTransitions);
+    return () => {
+      window.removeEventListener('beforeunload', saveAndClearTransitions);
+      saveAndClearTransitions();
+    };
+  }, [saveAndClearTransitions]);
+
   const { videoSet } = useAuth();
   const videos = useMemo(() => {
     return MOCK_VIDEOS.filter(v => v.set === videoSet);
@@ -94,6 +107,22 @@ export default function PlayerPage() {
       router.push('/');
     }
   }, [user, isLoading, router]);
+
+  // Position the top/bottom gaze split in the gap between the video player and
+  // the suggested-videos grid. Measured from the player area's bottom so it
+  // adapts to viewport height; re-measured on resize.
+  useEffect(() => {
+    const measure = () => {
+      const el = playerAreaRef.current;
+      if (!el) return;
+      const splitY = el.getBoundingClientRect().bottom + 25; // middle of the 32px gap
+      const ratio = splitY / window.innerHeight;
+      setSplitRatio(Math.min(0.95, Math.max(0.05, ratio)));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [currentVideo]);
 
   // Recording is started on the EEG page and stopped on leaving this page by
   // RecordingProvider, so the player no longer manages the recorder directly.
@@ -251,10 +280,25 @@ export default function PlayerPage() {
         </button>
       )} */}
 
+      {/* Visualizes the top/bottom split used by useGazeSectionTracker
+          (window.innerHeight * splitRatio) to classify each gaze sample. */}
+      <div
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          top: `${splitRatio * 100}%`,
+          height: 2,
+          background: 'red',
+          zIndex: 1000,
+          pointerEvents: 'none',
+        }}
+      />
+
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div ref={playerAreaRef} style={{ display: 'flex', justifyContent: 'center' }}>
           <VideoPlayer
             mode={mode}
             video={currentVideo}

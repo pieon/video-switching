@@ -26,6 +26,14 @@ body.experiment-theme {
   color: #fff;
 }
 
+/* Hide WebGazer's red gaze-prediction dot everywhere by default. The persistent
+   WebGazer instance keeps this element in the DOM across pages; the calibrate
+   page re-shows it (as the ladybug) during calibration via a higher-specificity
+   rule. !important is required because WebGazer sets display inline each frame. */
+#webgazerGazeDot {
+  display: none !important;
+}
+
 #__next {
   width: 100%;
 }

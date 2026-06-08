@@ -328,7 +328,7 @@ export default function CalibratePage() {
             left: 0,
             width: '100vw',
             height: '100vh',
-            background: 'rgba(0, 0, 0, 0.9)',
+            background: '#000',
             zIndex: 1000,
           }}
         >
@@ -441,7 +441,7 @@ export default function CalibratePage() {
             left: 0,
             width: '100vw',
             height: '100vh',
-            background: 'rgba(0, 0, 0, 0.9)',
+            background: '#000',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -482,7 +482,7 @@ export default function CalibratePage() {
       `}</style>
 
       <style jsx global>{`
-        #webgazerGazeDot {
+        body #webgazerGazeDot {
           background: url('/Images/LadyBugSprite.png') center / contain no-repeat !important;
           background-color: transparent !important;
           width: 60px !important;
