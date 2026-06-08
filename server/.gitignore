@@ -26,10 +26,13 @@ Thumbs.db
 *.swo
 *~
 
-# Prisma
-# prisma/
-# prisma/migrations/*_migration/
-# !prisma/migrations/migration_lock.toml
+# Prisma — never commit the live SQLite database or its backups/sidecar files.
+# Committing it causes data loss: any git checkout/pull/reset reverts it.
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-wal
+prisma/*.db-shm
+prisma/*.backup.*.db
 
 # Build
 dist/
