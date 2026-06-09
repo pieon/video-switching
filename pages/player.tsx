@@ -280,21 +280,6 @@ export default function PlayerPage() {
         </button>
       )} */}
 
-      {/* Visualizes the top/bottom split used by useGazeSectionTracker
-          (window.innerHeight * splitRatio) to classify each gaze sample. */}
-      <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          top: `${splitRatio * 100}%`,
-          height: 2,
-          background: 'red',
-          zIndex: 1000,
-          pointerEvents: 'none',
-        }}
-      />
-
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}
       >
