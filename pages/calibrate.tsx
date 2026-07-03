@@ -51,7 +51,7 @@ export default function CalibratePage() {
   }, [isReady, resume, pause]);
 
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
-  const [clicksRemaining, setClicksRemaining] = useState(5); // 5 clicks per point
+  const [clicksRemaining, setClicksRemaining] = useState(2); // 2 clicks per point
   const [completedPoints, setCompletedPoints] = useState<number[]>([]);
   const [clickCounts, setClickCounts] = useState<{ [key: number]: number }>({});
   const [isCalibrating, setIsCalibrating] = useState(false);
@@ -61,11 +61,12 @@ export default function CalibratePage() {
   const [showAccuracyConfirm, setShowAccuracyConfirm] = useState(false);
   const [isMeasuringAccuracy, setIsMeasuringAccuracy] = useState(false);
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
+  const [avgDistancePx, setAvgDistancePx] = useState<number | null>(null);
   const lastClickTimeRef = useRef<number | null>(null);
   const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
 
-  const CLICKS_PER_POINT = 5;
-  const CLICK_BUFFER_MS = 500; // Buffer between clicks to prevent accidental rapid taps
+  const CLICKS_PER_POINT = 2;
+  const CLICK_BUFFER_MS = 50; // Buffer between clicks to prevent accidental rapid taps
 
   // Follows WebGazer's precision_calculation.js
   const calculatePrecision = (
@@ -73,10 +74,12 @@ export default function CalibratePage() {
     yArray: number[],
     staringPointX: number,
     staringPointY: number
-  ): number => {
+  ): [number, number] => {
     const halfWindowHeight = window.innerHeight / 2;
     const numPoints = Math.min(xArray.length, yArray.length);
     const precisionPercentages: number[] = [];
+    const precisionDistance: number[] = [];
+    const DPI = 96;
 
     for (let i = 0; i < numPoints; i++) {
       const distance = Math.sqrt(
@@ -93,12 +96,15 @@ export default function CalibratePage() {
         precision = 100;
       }
 
+      precisionDistance.push(distance);
       precisionPercentages.push(precision);
     }
 
-    if (precisionPercentages.length === 0) return 0;
-    const sum = precisionPercentages.reduce((a, b) => a + b, 0);
-    return Math.round(sum / precisionPercentages.length);
+    if (precisionPercentages.length === 0) return [0, 0];
+    const precisionPercentagesum = precisionPercentages.reduce((a, b) => a + b, 0) / precisionPercentages.length;
+    const distancePixelAverage = precisionDistance.reduce((a, b) => a + b, 0) / precisionDistance.length;
+    const distanceAverage = (distancePixelAverage / DPI) * 2.54;
+    return [Math.round(precisionPercentagesum), Math.round(distanceAverage)];
   };
 
   // Redirect to login if not authenticated
@@ -109,7 +115,6 @@ export default function CalibratePage() {
   }, [user, isLoading, router]);
 
   const startCalibration = () => {
-    // Create a randomized order of point indices
     const indices = Array.from({ length: CALIBRATION_POINTS.length }, (_, i) => i);
     const shuffled = indices.sort(() => Math.random() - 0.5);
 
@@ -121,6 +126,7 @@ export default function CalibratePage() {
     setCompletedPoints([]);
     setClickCounts({});
     setAccuracyPercentage(null);
+    setAvgDistancePx(null);
     lastClickTimeRef.current = null;
   };
 
@@ -185,13 +191,11 @@ export default function CalibratePage() {
     };
     setGazeListener(collectGaze);
 
-    // Wait 5 seconds while user stares at center dot
-    console.log('[Accuracy] Waiting 5 seconds...');
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     setGazeListener(null);
 
-    console.log('[Accuracy] 5s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
+    console.log('[Accuracy] 3s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
 
     // Use the last 50 points (matching WebGazer's circular buffer size)
     const points = gazeCollectionRef.current.slice(-50);
@@ -200,17 +204,16 @@ export default function CalibratePage() {
 
     // Step 5: Calculate precision using WebGazer's method
     let calculatedAccuracy = 50;
+    let avgDistance = 0;
 
     if (xArray.length > 0) {
-      calculatedAccuracy = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
-      console.log(
-        `Accuracy check: ${xArray.length} points, precision: ${calculatedAccuracy}%`
-      );
+      [calculatedAccuracy, avgDistance] = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
     } else {
       console.warn('No gaze data collected during accuracy check');
     }
 
     setAccuracyPercentage(calculatedAccuracy);
+    setAvgDistancePx(avgDistance);
     setIsMeasuringAccuracy(false);
     setIsComplete(true);
 
@@ -224,6 +227,7 @@ export default function CalibratePage() {
   const handleRecalibrate = () => {
     setIsComplete(false);
     setAccuracyPercentage(null);
+    setAvgDistancePx(null);
     clearCalibrationData();
     startCalibration();
   };
@@ -508,7 +512,12 @@ export default function CalibratePage() {
               marginBottom: 16,
             }}
           >
-            {accuracyPercentage}%
+            {avgDistancePx !== null && (
+              <span style={{ fontSize: 30, fontWeight: 500, color: '#666', marginLeft: 12 }}>
+                On average <span style={{ color: 'red', fontWeight: 700 }}>{avgDistancePx}cm</span> off from target.
+              </span>
+            )}
+            {/* {accuracyPercentage}% */}
           </div>
           <p style={{ fontSize: 16, marginBottom: 24, color: '#666' }}>
             {accuracyPercentage >= 80
