@@ -46,4 +46,20 @@ export const TRAINING_VIDEOS_SHORT: Video[] = [
   { id: "ts_4", title: "Sid the Science Kid", url: "/videos/training/short_training/Sid the Science Kid 30 seconds.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
 ];
 
+// Phase 1 alternative: 1-minute versions of the experiment stimulant videos,
+// matched to the participant's assigned set (reuses the stimulant thumbnails).
+export const TRAINING_VIDEOS_ONE_MIN_A: Video[] = [
+  { id: "om_a1", title: "Cafe Chaos",         url: "/videos/training/one_min_A/1_CafeChaos_1minute.mp4",    thumbnail: "/thumbs/stimulant_thumb/Set_A/1_Cafe Chaos 5 minute video thumb.jpg" },
+  { id: "om_a2", title: "One of These Goats", url: "/videos/training/one_min_A/3_OneofTheseGoats_1min.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_A/3_OneOfTheseGoats_5Mins thumb.jpg" },
+  { id: "om_a3", title: "Buried Treasure",    url: "/videos/training/one_min_A/5_BurriedTreasure_1min.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_A/5_BurriedTreasure_5mins thumb.jpg" },
+  { id: "om_a4", title: "Building Bridges",   url: "/videos/training/one_min_A/7_BuildingBridges_1min.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_A/9_Building Bridges_5mins_v2 thumb.jpg" },
+];
+
+export const TRAINING_VIDEOS_ONE_MIN_B: Video[] = [
+  { id: "om_b1", title: "Zadies Shell Shuffle", url: "/videos/training/one_min_B/2_ZadiesShellShuffle_1min.mp4", thumbnail: "/thumbs/stimulant_thumb/Set_B/2_Zadies Shell Shuffle 5 minute video thumb.jpg" },
+  { id: "om_b2", title: "Pokey Plant",          url: "/videos/training/one_min_B/4_PokeyPlant_1min.mp4",         thumbnail: "/thumbs/stimulant_thumb/Set_B/4_PokeyPlant_5mins thumb.jpg" },
+  { id: "om_b3", title: "Lemonade Problem",     url: "/videos/training/one_min_B/6_LemonadeProblem_1min.mp4",    thumbnail: "/thumbs/stimulant_thumb/Set_B/6_Lemonade Problem_5mins v2 thumb.jpg" },
+  { id: "om_b4", title: "Design Time",          url: "/videos/training/one_min_B/8_DesignTime_1min.mp4",         thumbnail: "/thumbs/stimulant_thumb/Set_B/10_Design Time thumb.jpg" },
+];
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';

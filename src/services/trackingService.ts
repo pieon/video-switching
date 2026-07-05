@@ -250,6 +250,31 @@ class TrackingService {
   }
 
   /**
+   * Send a batch of raw gaze samples to the server. Throws on failure so the
+   * caller can re-buffer. Pass keepalive=true when flushing during page unload.
+   */
+  async saveGazeBatch(
+    samples: { videoId: string; x: number; y: number; timestamp: number }[],
+    keepalive = false
+  ): Promise<void> {
+    if (!this.token || samples.length === 0) return;
+
+    const response = await fetch(`${API_URL}/gaze/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`,
+      },
+      body: JSON.stringify({ samples }),
+      keepalive,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gaze upload failed: ${response.status}`);
+    }
+  }
+
+  /**
    * Start auto-flushing events
    */
   private startAutoFlush() {

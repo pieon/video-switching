@@ -8,11 +8,14 @@ import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import {
   TRAINING_VIDEOS_SHORT,
-  TRAINING_VIDEOS_PHASE_1,
   TRAINING_VIDEOS_PHASE_2,
   TRAINING_VIDEOS_PHASE_3,
+  TRAINING_VIDEOS_ONE_MIN_A,
+  TRAINING_VIDEOS_ONE_MIN_B,
 } from '@/utils/constants';
 import { Mode, TrainingType, Video } from '@/types';
+
+const TRAINING_PHASES: number = 1;
 
 export default function TrainingPage() {
   const router = useRouter();
@@ -33,8 +36,6 @@ export default function TrainingPage() {
     );
   }
 
-  // Prefer URL param (set by admin.tsx) over the user record so a researcher
-  // can override per-run if needed; fall back to the user's assigned type.
   const trainingType =
     (router.query.trainingType as TrainingType | undefined) ??
     user.trainingType ??
@@ -43,9 +44,6 @@ export default function TrainingPage() {
   return trainingType === 'short' ? <TrainingShort /> : <TrainingFull />;
 }
 
-// ---------------------------------------------------------------------------
-// Short training — single phase
-// ---------------------------------------------------------------------------
 function TrainingShort() {
   const router = useRouter();
   const trainingMode = (router.query.mode as Mode) || 'non_switching';
@@ -132,12 +130,13 @@ function TrainingShort() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Full training — three phases
-// ---------------------------------------------------------------------------
 function TrainingFull() {
   const router = useRouter();
+  const { videoSet } = useAuth();
   const trainingMode = (router.query.mode as Mode) || 'non_switching';
+
+  // Phase 1 uses the 1-min videos of the participant's assigned experiment set.
+  const phase1Videos = videoSet === 'B' ? TRAINING_VIDEOS_ONE_MIN_B : TRAINING_VIDEOS_ONE_MIN_A;
 
   type Phase =
     | 'intro1' | 'playing1'
@@ -153,7 +152,7 @@ function TrainingFull() {
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
 
   const phaseVideos =
-    phase === 'intro1' || phase === 'playing1' ? TRAINING_VIDEOS_PHASE_1 :
+    phase === 'intro1' || phase === 'playing1' ? phase1Videos :
     phase === 'intro2' || phase === 'playing2' ? TRAINING_VIDEOS_PHASE_2 :
     TRAINING_VIDEOS_PHASE_3;
 
@@ -181,12 +180,12 @@ function TrainingFull() {
   }, [playbackPositions]);
 
   useEffect(() => {
-    if (phase === 'playing1' && TRAINING_VIDEOS_PHASE_1.every(v => completed1.includes(v.id))) {
-      setPhase('intro2');
+    if (phase === 'playing1' && phase1Videos.every(v => completed1.includes(v.id))) {
+      setPhase(TRAINING_PHASES >= 2 ? 'intro2' : 'complete');
       setCurrent(null);
       setPlaybackPositions({});
     } else if (phase === 'playing2' && TRAINING_VIDEOS_PHASE_2.every(v => completed2.includes(v.id))) {
-      setPhase('intro3');
+      setPhase(TRAINING_PHASES >= 3 ? 'intro3' : 'complete');
       setCurrent(null);
       setPlaybackPositions({});
     } else if (phase === 'playing3' && TRAINING_VIDEOS_PHASE_3.every(v => completed3.includes(v.id))) {
@@ -201,7 +200,7 @@ function TrainingFull() {
     return (
       <PageLayout maxWidth={700}>
         <Card style={{ marginTop: 48, textAlign: 'center' }}>
-          <h1 style={{ marginTop: 0, color: '#333' }}>Training 1 of 3</h1>
+          <h1 style={{ marginTop: 0, color: '#333' }}>Training 1 of {TRAINING_PHASES}</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
           </p>
@@ -247,7 +246,7 @@ function TrainingFull() {
   }
 
   if (phase === 'complete') {
-    return <TrainingCompleteCard onContinue={() => router.push('/player')} message="You've completed all three training sessions. You're now ready for the experiment." />;
+    return <TrainingCompleteCard onContinue={() => router.push('/player')} message={TRAINING_PHASES > 1 ? "You've completed all three training sessions. You're now ready for the experiment." : "You've completed training. You're now ready for the experiment."} />;
   }
 
   const trainingNumber = phase === 'playing3' ? 3 : phase === 'playing2' ? 2 : 1;
@@ -274,8 +273,8 @@ function TrainingFull() {
         }
       }}
       onForceSkip={() => {
-        if (phase === 'playing1') { setPhase('intro2'); setPlaybackPositions({}); }
-        else if (phase === 'playing2') { setPhase('intro3'); setPlaybackPositions({}); }
+        if (phase === 'playing1') { setPhase(TRAINING_PHASES >= 2 ? 'intro2' : 'complete'); setPlaybackPositions({}); }
+        else if (phase === 'playing2') { setPhase(TRAINING_PHASES >= 3 ? 'intro3' : 'complete'); setPlaybackPositions({}); }
         else if (phase === 'playing3') { setPhase('complete'); }
         setCurrent(null);
       }}
@@ -285,9 +284,6 @@ function TrainingFull() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shared UI bits
-// ---------------------------------------------------------------------------
 function ModeBlurb({ isSwitching }: { isSwitching: boolean }) {
   return (
     <div style={{

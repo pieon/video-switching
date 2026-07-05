@@ -8,7 +8,7 @@ import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useSession } from '@/hooks/useSession';
 import { GazeData } from '@/hooks/useWebGazer';
 import { useWebGazerContext } from '@/context/WebGazerContext';
-import { useGazeSectionTracker } from '@/hooks/useGazeSectionTracker';
+import { useGazeLogger } from '@/hooks/useGazeLogger';
 import { trackingService } from '@/services/trackingService';
 import { MOCK_VIDEOS } from '@/utils/constants';
 
@@ -27,35 +27,31 @@ export default function PlayerPage() {
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
-  // Top/bottom split for gaze tracking. Measured to sit in the gap between the
-  // video player and the suggested-videos grid (see effect below).
-  const [splitRatio, setSplitRatio] = useState(0.7);
-  const playerAreaRef = useRef<HTMLDivElement>(null);
 
   // Read saved camera selection from the EEG page
   const cameraDeviceId = typeof window !== 'undefined'
     ? localStorage.getItem('selected_camera_device_id') || undefined
     : undefined;
 
-  // Gaze section tracking (top/bottom transitions)
-  const { processGaze, saveAndClearTransitions } = useGazeSectionTracker({
+  // Log every raw gaze sample (x, y) per participant.
+  const { logSample, saveAndClearSamples } = useGazeLogger({
     participantId: user?.participantId,
-    splitRatio,
   });
+
+  // Latest video being watched, read inside the (stable) gaze handler so each
+  // sample is tagged with the current videoId ('' when nothing is playing).
+  const currentVideoIdRef = useRef<string | null>(null);
 
   // WebGazer eye tracking integration (single persistent instance via context)
   const handleGazeUpdate = useCallback((data: GazeData) => {
-    processGaze(data);
-  }, [processGaze]);
+    logSample(data, currentVideoIdRef.current ?? '');
+  }, [logSample]);
 
   const {
     start: startWebGazer,
     resume: resumeWebGazer,
     pause: pauseWebGazer,
     setGazeListener,
-    setSaveGazeData,
-    getGazeData,
-    clearGazeData,
     isReady: webgazerReady,
   } = useWebGazerContext();
 
@@ -65,28 +61,27 @@ export default function PlayerPage() {
     startWebGazer(cameraDeviceId);
   }, [startWebGazer, cameraDeviceId]);
 
-  // Route gaze samples to the section tracker and resume tracking while on this
-  // page; pause and detach on unmount (e.g. navigating back to /admin).
+  // Route gaze samples to the logger and resume tracking while on this page;
+  // pause and detach on unmount (e.g. navigating back to /admin).
   useEffect(() => {
-    setSaveGazeData(true);
     setGazeListener(handleGazeUpdate);
     if (webgazerReady) resumeWebGazer();
     return () => {
       setGazeListener(null);
-      setSaveGazeData(false);
       pauseWebGazer();
     };
-  }, [webgazerReady, handleGazeUpdate, setSaveGazeData, setGazeListener, resumeWebGazer, pauseWebGazer]);
+  }, [webgazerReady, handleGazeUpdate, setGazeListener, resumeWebGazer, pauseWebGazer]);
 
-  // Flush any buffered gaze transitions when leaving the page (navigation or
-  // tab close), so data isn't lost if a video wasn't finished.
+  // Flush any buffered gaze samples when leaving the page (navigation or tab
+  // close), so data isn't lost if a video wasn't finished.
   useEffect(() => {
-    window.addEventListener('beforeunload', saveAndClearTransitions);
+    const onBeforeUnload = () => saveAndClearSamples(true); // keepalive during unload
+    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', saveAndClearTransitions);
-      saveAndClearTransitions();
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      saveAndClearSamples();
     };
-  }, [saveAndClearTransitions]);
+  }, [saveAndClearSamples]);
 
   const { videoSet } = useAuth();
   const videos = useMemo(() => {
@@ -108,21 +103,8 @@ export default function PlayerPage() {
     }
   }, [user, isLoading, router]);
 
-  // Position the top/bottom gaze split in the gap between the video player and
-  // the suggested-videos grid. Measured from the player area's bottom so it
-  // adapts to viewport height; re-measured on resize.
-  useEffect(() => {
-    const measure = () => {
-      const el = playerAreaRef.current;
-      if (!el) return;
-      const splitY = el.getBoundingClientRect().bottom + 25; // middle of the 32px gap
-      const ratio = splitY / window.innerHeight;
-      setSplitRatio(Math.min(0.95, Math.max(0.05, ratio)));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [currentVideo]);
+  // Keep the current videoId available to the (stable) gaze handler.
+  currentVideoIdRef.current = current;
 
   // Recording is started on the EEG page and stopped on leaving this page by
   // RecordingProvider, so the player no longer manages the recorder directly.
@@ -163,9 +145,6 @@ export default function PlayerPage() {
 
     // Track completion via tracking service (if session exists)
     if (currentSessionId) {
-      const gazeData = getGazeData();
-      console.log(`Collected ${gazeData.length} gaze data points for video ${currentVideo.id}`);
-
       trackingService.trackComplete(
         currentSessionId,
         getPlaybackPosition(currentVideo.id)
@@ -178,9 +157,8 @@ export default function PlayerPage() {
     setCurrent(null);
     setCurrentSessionId(null);
 
-    // Save gaze transitions to localStorage and clear for next video
-    saveAndClearTransitions();
-    clearGazeData();
+    // Persist buffered gaze samples to localStorage.
+    saveAndClearSamples();
   };
 
   const handlePlay = (position: number) => {
@@ -283,7 +261,7 @@ export default function PlayerPage() {
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}
       >
-        <div ref={playerAreaRef} style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
           <VideoPlayer
             mode={mode}
             video={currentVideo}

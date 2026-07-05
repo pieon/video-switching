@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Button, Alert } from '@/components/ui';
 import { Participant } from '@/types';
-import { downloadGazeCSV } from '@/hooks/useGazeSectionTracker';
 
 export default function ResearcherPage() {
   const router = useRouter();
@@ -95,16 +94,8 @@ export default function ResearcherPage() {
       const response = await fetch(`${API_URL}/users/${dbId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete participant');
 
-      // Remove local data for this participant
-      const gazeKey = 'gaze_transitions';
-      try {
-        const raw = localStorage.getItem(gazeKey);
-        if (raw) {
-          const all = JSON.parse(raw);
-          delete all[participantId];
-          localStorage.setItem(gazeKey, JSON.stringify(all));
-        }
-      } catch {}
+      // Gaze samples cascade-delete with the user on the backend; just clear
+      // the local per-participant session counter.
       localStorage.removeItem(`session_number_${participantId}`);
 
       fetchParticipants();
@@ -127,6 +118,25 @@ export default function ResearcherPage() {
       const a = document.createElement('a');
       a.href = url;
       a.download = `${type}_export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Export failed: ${err.message}`);
+    }
+  };
+
+  const handleExportGaze = async () => {
+    try {
+      const response = await fetch(`${API_URL}/gaze/export`);
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gaze_samples_export.csv';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -317,11 +327,11 @@ export default function ResearcherPage() {
           Export Participants
         </Button>
         <Button
-          onClick={downloadGazeCSV}
+          onClick={handleExportGaze}
           size="medium"
           style={{ background: '#6a1b9a', color: 'white' }}
         >
-          Export Gaze Transitions
+          Export Gaze Samples
         </Button>
       </div>
 
