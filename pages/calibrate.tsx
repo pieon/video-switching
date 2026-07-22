@@ -25,19 +25,14 @@ export default function CalibratePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
-  // Camera was already chosen on the EEG page; read it from localStorage.
-  // selectedCameraId stays null until loaded so WebGazer initializes once
-  // with the chosen device (avoids a teardown/re-init race).
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedCameraId(localStorage.getItem(CAMERA_STORAGE_KEY) ?? '');
   }, []);
 
-  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData } = useWebGazerContext();
+  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setMouseTraining } = useWebGazerContext();
 
-  // Initialize the single persistent WebGazer instance once the chosen camera
-  // is known. start() is idempotent; resume()/pause() only run after it's ready.
   useEffect(() => {
     if (selectedCameraId === null) return;
     start(selectedCameraId || undefined);
@@ -50,10 +45,17 @@ export default function CalibratePage() {
     };
   }, [isReady, resume, pause]);
 
+  useEffect(() => {
+    if (!isReady) return;
+    setMouseTraining(false);
+    return () => {
+      setMouseTraining(true);
+    };
+  }, [isReady, setMouseTraining]);
+
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
-  const [clicksRemaining, setClicksRemaining] = useState(2); // 2 clicks per point
+  const [clicksRemaining, setClicksRemaining] = useState(0);
   const [completedPoints, setCompletedPoints] = useState<number[]>([]);
-  const [clickCounts, setClickCounts] = useState<{ [key: number]: number }>({});
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [randomizedOrder, setRandomizedOrder] = useState<number[]>([]);
@@ -61,53 +63,75 @@ export default function CalibratePage() {
   const [showAccuracyConfirm, setShowAccuracyConfirm] = useState(false);
   const [isMeasuringAccuracy, setIsMeasuringAccuracy] = useState(false);
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
-  const [avgDistancePx, setAvgDistancePx] = useState<number | null>(null);
-  const lastClickTimeRef = useRef<number | null>(null);
   const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
+  // Live gaze readout shown during calibration + accuracy check.
+  const [liveGaze, setLiveGaze] = useState<{ x: number; y: number } | null>(null);
+  // Rolling trace of recent gaze points shown during the accuracy check.
+  const [gazeTrail, setGazeTrail] = useState<{ x: number; y: number }[]>([]);
+  // Current validation target dot ({x,y} in px) and per-point ROI results.
+  const [validationDot, setValidationDot] = useState<{ x: number; y: number } | null>(null);
+  const [validationResults, setValidationResults] = useState<
+    { label: string; percentInROI: number; offsetCm: number }[]
+  >([]);
+  // Toggled true only during the 3s accuracy window so the shared listener knows
+  // when to buffer samples (vs. just updating the live readout).
+  const isCollectingRef = useRef(false);
+  const lastLiveUpdateRef = useRef(0);
+  // Preloaded chime played each time a new calibration point appears.
+  const dingRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    dingRef.current = new Audio('/Images/audio/ding.wav');
+  }, []);
 
-  const CLICKS_PER_POINT = 2;
-  const CLICK_BUFFER_MS = 50; // Buffer between clicks to prevent accidental rapid taps
+  // Clicks required per point. Each click records one sample; 4 × 9 = 36 total,
+  // well within WebGazer's fixed 50-sample click buffer (dataWindow=50).
+  const CLICKS_PER_POINT = 4;
 
-  // Follows WebGazer's precision_calculation.js
-  const calculatePrecision = (
-    xArray: number[],
-    yArray: number[],
-    staringPointX: number,
-    staringPointY: number
-  ): [number, number] => {
-    const halfWindowHeight = window.innerHeight / 2;
-    const numPoints = Math.min(xArray.length, yArray.length);
-    const precisionPercentages: number[] = [];
-    const precisionDistance: number[] = [];
-    const DPI = 96;
+  // ROI validation config (jsPsych webgazer-validate style).
+  const ROI_RADIUS = 200;           // px; a sample is "on target" within this radius
+  const TIME_TO_SACCADE = 1000;     // ms for the eyes to reach each point before we collect
+  const VALIDATION_DURATION = 2000; // ms of gaze collected per point
+  const PASS_THRESHOLD = 70;        // min % of samples within ROI (per point) to pass
+  const DPI = 96;
+  const GAZE_TRAIL_MAX = 20;        // max gaze-trace dots shown; oldest drops off
 
-    for (let i = 0; i < numPoints; i++) {
-      const distance = Math.sqrt(
-        Math.pow(staringPointX - xArray[i], 2) + Math.pow(staringPointY - yArray[i], 2)
-      );
-
-      let precision: number;
-      if (distance <= halfWindowHeight && distance > -1) {
-        // Linear falloff: 0px = 100%, halfWindowHeight = 0%
-        precision = 100 - (distance / halfWindowHeight * 100);
-      } else if (distance > halfWindowHeight) {
-        precision = 0;
-      } else {
-        precision = 100;
-      }
-
-      precisionDistance.push(distance);
-      precisionPercentages.push(precision);
-    }
-
-    if (precisionPercentages.length === 0) return [0, 0];
-    const precisionPercentagesum = precisionPercentages.reduce((a, b) => a + b, 0) / precisionPercentages.length;
-    const distancePixelAverage = precisionDistance.reduce((a, b) => a + b, 0) / precisionDistance.length;
-    const distanceAverage = (distancePixelAverage / DPI) * 2.54;
-    return [Math.round(precisionPercentagesum), Math.round(distanceAverage)];
+  const getValidationPoints = () => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const clampY = (y: number) => Math.max(80, Math.min(h - 80, y));
+    const LAYOUT_TOP = 76;
+    const MAIN_VIDEO_H = 648;
+    const GRID_GAP = 32;
+    const THUMB_H = 200;
+    return [
+      { label: 'Main video', x: w / 2, y: clampY(LAYOUT_TOP + MAIN_VIDEO_H / 2) },
+      { label: 'Suggested video', x: w / 2, y: clampY(LAYOUT_TOP + MAIN_VIDEO_H + GRID_GAP + THUMB_H / 2) },
+    ];
   };
 
-  // Redirect to login if not authenticated
+  // Percent of samples that fell within ROI_RADIUS of the target.
+  const calculatePercentInROI = (
+    samples: { x: number; y: number }[],
+    target: { x: number; y: number }
+  ) => {
+    if (samples.length === 0) return 0;
+    const inside = samples.filter(
+      (s) => Math.hypot(s.x - target.x, s.y - target.y) <= ROI_RADIUS
+    ).length;
+    return Math.round((inside / samples.length) * 100);
+  };
+
+  // Distance (px) from the samples' centroid to the target — systematic offset.
+  const calculateOffsetPx = (
+    samples: { x: number; y: number }[],
+    target: { x: number; y: number }
+  ) => {
+    if (samples.length === 0) return 0;
+    const cx = samples.reduce((s, p) => s + p.x, 0) / samples.length;
+    const cy = samples.reduce((s, p) => s + p.y, 0) / samples.length;
+    return Math.hypot(cx - target.x, cy - target.y);
+  };
+
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/');
@@ -124,102 +148,133 @@ export default function CalibratePage() {
     setCurrentPointIndex(shuffled[0]);
     setClicksRemaining(CLICKS_PER_POINT);
     setCompletedPoints([]);
-    setClickCounts({});
     setAccuracyPercentage(null);
-    setAvgDistancePx(null);
-    lastClickTimeRef.current = null;
   };
 
-  const handlePointClick = async (pointId: number, index: number) => {
+  // Mark the current point done and move to the next, or finish calibration.
+  const advanceToNextPoint = () => {
+    if (currentPointIndex !== null) {
+      const pointId = CALIBRATION_POINTS[currentPointIndex].id;
+      setCompletedPoints((prev) => [...prev, pointId]);
+    }
+    const nextOrderIndex = currentOrderIndex + 1;
+    if (nextOrderIndex < randomizedOrder.length) {
+      setCurrentOrderIndex(nextOrderIndex);
+      setCurrentPointIndex(randomizedOrder[nextOrderIndex]);
+      setClicksRemaining(CLICKS_PER_POINT);
+    } else {
+      setIsCalibrating(false);
+      setShowAccuracyConfirm(true);
+    }
+  };
+
+  // Click mode: each click on the active point records the exact target center
+  // once; after CLICKS_PER_POINT clicks the point is done and we advance.
+  const handlePointClick = (index: number) => {
     if (!isCalibrating || currentPointIndex !== index) return;
 
-    // Check click buffer to prevent rapid taps
-    const now = Date.now();
-    if (lastClickTimeRef.current && now - lastClickTimeRef.current < CLICK_BUFFER_MS) {
-      return; // Too soon since last click
-    }
-    lastClickTimeRef.current = now;
+    const point = CALIBRATION_POINTS[index];
+    const x = (point.x / 100) * window.innerWidth;
+    const y = (point.y / 100) * window.innerHeight;
+    calibratePoint(x, y, 'click');
 
-    // Track click count for visual feedback
-    const currentClicks = (clickCounts[pointId] || 0) + 1;
-    setClickCounts((prev) => ({ ...prev, [pointId]: currentClicks }));
-
-    // Decrement clicks for this point
-    const newClicksRemaining = clicksRemaining - 1;
-    setClicksRemaining(newClicksRemaining);
-
-    // Wait for WebGazer to record the click (recommended delay)
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    if (newClicksRemaining === 0) {
-      // Point completed, mark it
-      setCompletedPoints((prev) => [...prev, pointId]);
-
-      // Move to next point in randomized order or finish
-      const nextOrderIndex = currentOrderIndex + 1;
-      if (nextOrderIndex < randomizedOrder.length) {
-        setCurrentOrderIndex(nextOrderIndex);
-        setCurrentPointIndex(randomizedOrder[nextOrderIndex]);
-        setClicksRemaining(CLICKS_PER_POINT);
-      } else {
-        // All points calibrated - show confirmation before measuring accuracy
-        setIsCalibrating(false);
-        setShowAccuracyConfirm(true);
-      }
+    if (clicksRemaining - 1 > 0) {
+      setClicksRemaining(clicksRemaining - 1);
+    } else {
+      advanceToNextPoint();
     }
   };
+
+  // Chime each time a new calibration point appears.
+  useEffect(() => {
+    if (!isCalibrating || currentPointIndex === null) return;
+    if (dingRef.current) {
+      dingRef.current.currentTime = 0;
+      dingRef.current.play().catch(() => {});
+    }
+  }, [isCalibrating, currentPointIndex]);
+
+  // Single gaze listener active while calibrating or measuring: it updates the
+  // live readout (throttled) and buffers samples during the accuracy window.
+  useEffect(() => {
+    if (!isCalibrating && !isMeasuringAccuracy) return;
+
+    const onGaze = (data: GazeData) => {
+      if (!data || !data.x || !data.y) return;
+      if (isCollectingRef.current) {
+        gazeCollectionRef.current.push({ x: data.x, y: data.y });
+      }
+      // Rolling trace of the last GAZE_TRAIL_MAX viewpoints (accuracy check only).
+      if (isMeasuringAccuracy) {
+        const point = { x: data.x, y: data.y };
+        setGazeTrail((prev) => {
+          const next = prev.length >= GAZE_TRAIL_MAX ? prev.slice(1) : prev.slice();
+          next.push(point);
+          return next;
+        });
+      }
+      const now = performance.now();
+      if (now - lastLiveUpdateRef.current >= 100) { // ~10 fps readout
+        lastLiveUpdateRef.current = now;
+        setLiveGaze({ x: Math.round(data.x), y: Math.round(data.y) });
+      }
+    };
+    setGazeListener(onGaze);
+
+    return () => {
+      setGazeListener(null);
+      setLiveGaze(null);
+      setGazeTrail([]);
+    };
+  }, [isCalibrating, isMeasuringAccuracy, setGazeListener]);
 
   const handleStartAccuracyCheck = () => {
     setShowAccuracyConfirm(false);
-    measureAccuracy();
+    runValidation();
   };
 
-  const measureAccuracy = async () => {
-    console.log('[Accuracy] measureAccuracy() called');
+  // ROI validation: for each target (main video / suggested video) show a dot,
+  // let the eyes settle, collect gaze, then score percent-in-ROI + offset.
+  const runValidation = async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     setIsMeasuringAccuracy(true);
-    gazeCollectionRef.current = [];
 
-    // Staring/target point is the center of the screen (matches WebGazer's approach)
-    const staringPointX = window.innerWidth / 2;
-    const staringPointY = window.innerHeight / 2;
+    const targets = getValidationPoints();
+    const results: { label: string; percentInROI: number; offsetCm: number }[] = [];
 
-    // Collect gaze predictions via the shared persistent listener.
-    const collectGaze = (data: GazeData) => {
-      if (data && data.x && data.y) {
-        gazeCollectionRef.current.push({ x: data.x, y: data.y });
-      }
-    };
-    setGazeListener(collectGaze);
+    for (const target of targets) {
+      setValidationDot({ x: target.x, y: target.y });
+      gazeCollectionRef.current = [];
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Let the eyes reach the dot, then collect for the validation window.
+      await sleep(TIME_TO_SACCADE);
+      isCollectingRef.current = true;
+      await sleep(VALIDATION_DURATION);
+      isCollectingRef.current = false;
 
-    setGazeListener(null);
-
-    console.log('[Accuracy] 3s elapsed. Collected:', gazeCollectionRef.current.length, 'points');
-
-    // Use the last 50 points (matching WebGazer's circular buffer size)
-    const points = gazeCollectionRef.current.slice(-50);
-    const xArray = points.map((p) => p.x);
-    const yArray = points.map((p) => p.y);
-
-    // Step 5: Calculate precision using WebGazer's method
-    let calculatedAccuracy = 50;
-    let avgDistance = 0;
-
-    if (xArray.length > 0) {
-      [calculatedAccuracy, avgDistance] = calculatePrecision(xArray, yArray, staringPointX, staringPointY);
-    } else {
-      console.warn('No gaze data collected during accuracy check');
+      const samples = gazeCollectionRef.current.slice();
+      const percentInROI = calculatePercentInROI(samples, target);
+      const offsetCm = Math.round((calculateOffsetPx(samples, target) / DPI) * 2.54);
+      results.push({ label: target.label, percentInROI, offsetCm });
+      console.log('[Validation]', target.label, {
+        target: { x: Math.round(target.x), y: Math.round(target.y) },
+        samples: samples.length,
+        percentInROI,
+        offsetCm,
+      });
     }
 
-    setAccuracyPercentage(calculatedAccuracy);
-    setAvgDistancePx(avgDistance);
+    setValidationDot(null);
+    setValidationResults(results);
+
+    // Overall = the weakest region (both must be good to pass).
+    const overall = Math.min(...results.map((r) => r.percentInROI));
+    setAccuracyPercentage(overall);
     setIsMeasuringAccuracy(false);
     setIsComplete(true);
 
-    // Auto-proceed if accuracy >= 70%
-    if (calculatedAccuracy >= 70) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (overall >= PASS_THRESHOLD) {
+      await sleep(2000);
       router.push('/admin');
     }
   };
@@ -227,7 +282,7 @@ export default function CalibratePage() {
   const handleRecalibrate = () => {
     setIsComplete(false);
     setAccuracyPercentage(null);
-    setAvgDistancePx(null);
+    setValidationResults([]);
     clearCalibrationData();
     startCalibration();
   };
@@ -294,7 +349,7 @@ export default function CalibratePage() {
         <Card style={{ marginTop: 24, textAlign: 'center' }}>
           <h2 style={{ marginTop: 0 }}>Ready to Calibrate</h2>
           <p style={{ fontSize: 16, marginBottom: 16, color: '#666' }}>
-            You'll see 9 points on the screen. Stare at a point that turned <strong style={{ color: '#ffc107' }}>yellow</strong> but <strong>do not move your head</strong>.
+            You'll see 9 points on the screen, one at a time. Look directly at each point and <strong>click it {CLICKS_PER_POINT} times</strong> while keeping your head still.
           </p>
           <div style={{
             background: '#fff3cd',
@@ -308,7 +363,7 @@ export default function CalibratePage() {
             <strong>Tips for best accuracy:</strong>
             <ul style={{ textAlign: 'left', marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
               <li>Keep your head still during calibration</li>
-              <li>Look directly at each point and wait for it to turn green before clicking</li>
+              <li>Look directly at each point while you click it, then it advances to the next</li>
               <li>Sit at a comfortable distance from the screen (~40cm)</li>
               <li>Ensure good lighting on your face</li>
             </ul>
@@ -352,18 +407,30 @@ export default function CalibratePage() {
             <div>Point {currentOrderIndex + 1} of {CALIBRATION_POINTS.length}</div>
           </div>
 
+          {/* Live gaze readout */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 20,
+              right: 20,
+              color: '#7CFC00',
+              fontSize: 16,
+              fontFamily: 'monospace',
+              fontWeight: 600,
+            }}
+          >
+            Gaze: {liveGaze ? `${liveGaze.x}, ${liveGaze.y}` : '—'}
+          </div>
+
           {/* Calibration points */}
           {CALIBRATION_POINTS.map((point, index) => {
             const isActive = currentPointIndex === index;
             const isCompleted = completedPoints.includes(point.id);
 
-            // Start at 100% opacity when highlighted, decrease by 0.16 per click (down to 0.2)
-            const clickOpacity = 1.0
-
             return (
               <button
                 key={point.id}
-                onClick={() => handlePointClick(point.id, index)}
+                onClick={() => handlePointClick(index)}
                 disabled={!isActive}
                 style={{
                   position: 'absolute',
@@ -377,17 +444,13 @@ export default function CalibratePage() {
                   padding: 0,
                   cursor: isActive ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
-                  opacity: isCompleted ? 0.0 : isActive ? clickOpacity : 0.0,
+                  opacity: isCompleted ? 0.0 : isActive ? 1.0 : 0.0,
                   animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label={`Calibration point ${point.id}`}
               >
                 <img
-                  src={
-                    isCompleted ? '/Images/greenflower.png' :
-                    isActive    ? '/Images/yellowflower.png' :
-                                  '/Images/blueflower.png'
-                  }
+                  src="/Images/rilakuma.gif"
                   alt=""
                   style={{
                     width: '100%',
@@ -410,14 +473,15 @@ export default function CalibratePage() {
             ✓ Calibration Points Complete!
           </h2>
           <p style={{ fontSize: 16, marginBottom: 24, color: '#666' }}>
-            Now we'll measure the accuracy of your calibration.
+            Now we'll check the accuracy where you'll actually be looking.
             <br />
             <br />
             <strong>Instructions:</strong>
             <br />
-            You'll see a blue dot in the center of the screen for 5 seconds.
+            A blue dot will appear in two places — first over the video area, then
+            over the suggested-videos area.
             <br />
-            Keep your head still and stare directly at the dot without moving your mouse.
+            Stare directly at each dot and keep your head still without moving your mouse.
           </p>
           <div style={{
             background: '#e3f2fd',
@@ -447,30 +511,64 @@ export default function CalibratePage() {
             height: '100vh',
             background: '#000',
             zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
-          <div style={{ textAlign: 'center', color: 'white' }}>
-            <h2 style={{ fontSize: 28, marginBottom: 24 }}>Measuring Accuracy...</h2>
-            <p style={{ fontSize: 18, marginBottom: 40 }}>
-              Please stare at the center dot for 5 seconds.
-              <br />
-              Keep your head still and don't move your mouse.
+          <div
+            style={{
+              position: 'absolute',
+              top: 40,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              textAlign: 'center',
+              color: 'white',
+            }}
+          >
+            <h2 style={{ fontSize: 28, marginBottom: 8 }}>Checking Accuracy...</h2>
+            <p style={{ fontSize: 16 }}>
+              Stare directly at the blue dot. Keep your head still.
             </p>
+            <div style={{ marginTop: 12, fontSize: 16, fontFamily: 'monospace', color: '#7CFC00' }}>
+              Gaze: {liveGaze ? `${liveGaze.x}, ${liveGaze.y}` : '—'}
+            </div>
+          </div>
+
+          {/* Rolling trace of the user's recent gaze points (max GAZE_TRAIL_MAX) */}
+          {gazeTrail.map((p, i) => (
             <div
+              key={i}
               style={{
-                width: 40,
-                height: 40,
+                position: 'absolute',
+                left: p.x,
+                top: p.y,
+                width: 12,
+                height: 12,
                 borderRadius: '50%',
-                background: '#2196F3',
-                margin: '0 auto',
-                boxShadow: '0 0 30px rgba(33, 150, 243, 0.8)',
+                background: '#7CFC00',
+                transform: 'translate(-50%, -50%)',
+                opacity: ((i + 1) / gazeTrail.length) * 0.8,
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
+
+          {/* Validation target at the current position */}
+          {validationDot && (
+            <img
+              src="/Images/rilakuma.gif"
+              alt=""
+              style={{
+                position: 'absolute',
+                left: validationDot.x,
+                top: validationDot.y,
+                width: 120,
+                height: 120,
+                objectFit: 'contain',
+                imageRendering: 'pixelated',
+                transform: 'translate(-50%, -50%)',
                 animation: 'pulse 1.5s ease-in-out infinite',
               }}
             />
-          </div>
+          )}
         </div>
       )}
 
@@ -487,55 +585,67 @@ export default function CalibratePage() {
 
       <style jsx global>{`
         body #webgazerGazeDot {
-          background: url('/Images/LadyBugSprite.png') center / contain no-repeat !important;
-          background-color: transparent !important;
-          width: 60px !important;
-          height: 60px !important;
-          border-radius: 0 !important;
+          background: rgba(33, 150, 243, 0.45) !important;
+          width: 10px !important;
+          height: 10px !important;
+          border-radius: 50% !important;
           box-shadow: none !important;
           opacity: 1 !important;
-          image-rendering: pixelated;
           display: ${isCalibrating || isMeasuringAccuracy ? 'block' : 'none'} !important;
         }
       `}</style>
 
       {isComplete && accuracyPercentage !== null && (
         <Card style={{ marginTop: 24, textAlign: 'center' }}>
-          <h2 style={{ marginTop: 0, color: accuracyPercentage >= 70 ? '#4caf50' : '#ff9800' }}>
-            {accuracyPercentage >= 70 ? '✓ Calibration Complete!' : '⚠ Calibration Completed'}
+          <h2 style={{ marginTop: 0, color: accuracyPercentage >= PASS_THRESHOLD ? '#4caf50' : '#ff9800' }}>
+            {accuracyPercentage >= PASS_THRESHOLD ? '✓ Calibration Complete!' : '⚠ Calibration Completed'}
           </h2>
-          <div
-            style={{
-              fontSize: 48,
-              fontWeight: 'bold',
-              color: accuracyPercentage >= 70 ? '#4caf50' : '#ff9800',
-              marginBottom: 16,
-            }}
-          >
-            {avgDistancePx !== null && (
-              <span style={{ fontSize: 30, fontWeight: 500, color: '#666', marginLeft: 12 }}>
-                On average <span style={{ color: 'red', fontWeight: 700 }}>{avgDistancePx}cm</span> off from target.
-              </span>
-            )}
-            {/* {accuracyPercentage}% */}
+
+          {/* Per-region ROI results */}
+          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', margin: '16px 0 24px' }}>
+            {validationResults.map((r) => {
+              const pass = r.percentInROI >= PASS_THRESHOLD;
+              return (
+                <div
+                  key={r.label}
+                  style={{
+                    minWidth: 200,
+                    padding: 16,
+                    borderRadius: 12,
+                    border: `2px solid ${pass ? '#4caf50' : '#ff9800'}`,
+                    background: pass ? '#e8f5e9' : '#fff3e0',
+                  }}
+                >
+                  <div style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>{r.label}</div>
+                  <div style={{ fontSize: 36, fontWeight: 'bold', color: pass ? '#4caf50' : '#ff9800' }}>
+                    {r.percentInROI}%
+                  </div>
+                  <div style={{ fontSize: 13, color: '#666' }}>within target</div>
+                  <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                    {r.offsetCm}cm avg offset
+                  </div>
+                </div>
+              );
+            })}
           </div>
+
           <p style={{ fontSize: 16, marginBottom: 24, color: '#666' }}>
-            {accuracyPercentage >= 80
-              ? 'Excellent accuracy! Your eye tracking is working very well.'
-              : accuracyPercentage >= 70
+            {accuracyPercentage >= 85
+              ? 'Excellent accuracy in both regions.'
+              : accuracyPercentage >= PASS_THRESHOLD
               ? 'Good accuracy. You can proceed or recalibrate for better results.'
-              : 'Low accuracy detected. We recommend recalibrating for better results.'}
+              : 'Low accuracy in at least one region. We recommend recalibrating.'}
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            {accuracyPercentage < 70 && (
+            {accuracyPercentage < PASS_THRESHOLD && (
               <Button onClick={handleRecalibrate} variant="primary" size="large">
                 Recalibrate
               </Button>
             )}
-            <Button onClick={handleAcceptCalibration} variant={accuracyPercentage >= 70 ? 'primary' : 'secondary'} size="large">
-              {accuracyPercentage >= 70 ? 'Continue to Settings' : 'Accept Anyway'}
+            <Button onClick={handleAcceptCalibration} variant={accuracyPercentage >= PASS_THRESHOLD ? 'primary' : 'secondary'} size="large">
+              {accuracyPercentage >= PASS_THRESHOLD ? 'Continue to Settings' : 'Accept Anyway'}
             </Button>
-            {accuracyPercentage >= 70 && (
+            {accuracyPercentage >= PASS_THRESHOLD && (
               <Button onClick={handleRecalibrate} variant="secondary" size="large">
                 Recalibrate
               </Button>

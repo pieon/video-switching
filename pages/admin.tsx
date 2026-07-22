@@ -21,7 +21,12 @@ function oppositeSet(s: VideoSet): VideoSet {
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, setMode, setVideoSet, isLoading } = useAuth();
+  const { user, setMode, setVideoSet, isLoading, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -59,7 +64,7 @@ export default function AdminPage() {
         <div style={{ fontSize: 14, color: '#666' }}>
           Participant: {user.participantId}
         </div>
-        <Button variant="danger" size="small">Logout</Button>
+        <Button variant="danger" size="small" onClick={handleLogout}>Logout</Button>
       </div>
 
       <h1 style={{ textAlign: 'center', marginBottom: 32 }}>

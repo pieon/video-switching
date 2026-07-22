@@ -1,12 +1,3 @@
-// WebGazer context — owns a SINGLE persistent WebGazer instance for the whole
-// experiment. WebGazer is a singleton and its async begin()/end() calls race
-// when overlapped (React StrictMode double-invoke, or teardown+re-init on
-// navigation), which causes "Requested texture size [0x0] is invalid".
-//
-// To avoid that we call begin() exactly once (guarded), keep the instance alive
-// across calibrate → admin → training → player, and pause()/resume() per page
-// instead of end()/begin(). The active gaze handler and save flag are held in
-// refs so pages can swap them without re-initializing WebGazer.
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { GazeData } from '@/hooks/useWebGazer';
@@ -25,6 +16,10 @@ interface WebGazerContextType {
   clearGazeData: () => void;
   /** Clear WebGazer's regression/calibration data (for recalibration). */
   clearCalibrationData: () => void;
+  /** Feed an explicit calibration sample (known target) to the regression model. */
+  calibratePoint: (x: number, y: number, eventType?: 'click' | 'move') => void;
+  /** Toggle WebGazer's implicit click/mousemove training listeners. */
+  setMouseTraining: (enabled: boolean) => void;
 }
 
 const WebGazerContext = createContext<WebGazerContextType | undefined>(undefined);
@@ -51,9 +46,6 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
       const webgazer: any = WebGazerModule.default;
       webgazerRef.current = webgazer;
 
-      // Single dispatcher reads the current handler/save flag from refs, so the
-      // listener never has to be re-registered (and is never null → no
-      // "callback is not a function" from WebGazer's unguarded loop).
       let gazeCount = 0;
       webgazer.setGazeListener((data: any, timestamp: number) => {
         if (data && data.x && data.y) {
@@ -187,6 +179,21 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     webgazerRef.current?.clearData();
   }, []);
 
+  const calibratePoint = useCallback(
+    (x: number, y: number, eventType: 'click' | 'move' = 'click') => {
+      webgazerRef.current?.recordScreenPosition(x, y, eventType);
+    },
+    []
+  );
+
+  const setMouseTraining = useCallback((enabled: boolean) => {
+    if (enabled) {
+      webgazerRef.current?.addMouseEventListeners();
+    } else {
+      webgazerRef.current?.removeMouseEventListeners();
+    }
+  }, []);
+
   const end = useCallback(() => {
     if (webgazerRef.current) {
       try {
@@ -226,6 +233,8 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
         getGazeData,
         clearGazeData,
         clearCalibrationData,
+        calibratePoint,
+        setMouseTraining,
       }}
     >
       {children}

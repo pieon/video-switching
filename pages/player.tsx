@@ -157,7 +157,6 @@ export default function PlayerPage() {
     setCurrent(null);
     setCurrentSessionId(null);
 
-    // Persist buffered gaze samples to localStorage.
     saveAndClearSamples();
   };
 
