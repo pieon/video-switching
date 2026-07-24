@@ -65,7 +65,6 @@ export default function CalibratePage() {
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
   const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
   // Live gaze readout shown during calibration + accuracy check.
-  const [liveGaze, setLiveGaze] = useState<{ x: number; y: number } | null>(null);
   // Rolling trace of recent gaze points shown during the accuracy check.
   const [gazeTrail, setGazeTrail] = useState<{ x: number; y: number }[]>([]);
   // Current validation target dot ({x,y} in px) and per-point ROI results.
@@ -76,7 +75,6 @@ export default function CalibratePage() {
   // Toggled true only during the 3s accuracy window so the shared listener knows
   // when to buffer samples (vs. just updating the live readout).
   const isCollectingRef = useRef(false);
-  const lastLiveUpdateRef = useRef(0);
   // Preloaded chime played each time a new calibration point appears.
   const dingRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
@@ -213,17 +211,11 @@ export default function CalibratePage() {
           return next;
         });
       }
-      const now = performance.now();
-      if (now - lastLiveUpdateRef.current >= 100) { // ~10 fps readout
-        lastLiveUpdateRef.current = now;
-        setLiveGaze({ x: Math.round(data.x), y: Math.round(data.y) });
-      }
     };
     setGazeListener(onGaze);
 
     return () => {
       setGazeListener(null);
-      setLiveGaze(null);
       setGazeTrail([]);
     };
   }, [isCalibrating, isMeasuringAccuracy, setGazeListener]);
@@ -245,6 +237,12 @@ export default function CalibratePage() {
     for (const target of targets) {
       setValidationDot({ x: target.x, y: target.y });
       gazeCollectionRef.current = [];
+
+      // Chime as each validation target (rilakuma) appears.
+      if (dingRef.current) {
+        dingRef.current.currentTime = 0;
+        dingRef.current.play().catch(() => {});
+      }
 
       // Let the eyes reach the dot, then collect for the validation window.
       await sleep(TIME_TO_SACCADE);
@@ -407,21 +405,6 @@ export default function CalibratePage() {
             <div>Point {currentOrderIndex + 1} of {CALIBRATION_POINTS.length}</div>
           </div>
 
-          {/* Live gaze readout */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 20,
-              right: 20,
-              color: '#7CFC00',
-              fontSize: 16,
-              fontFamily: 'monospace',
-              fontWeight: 600,
-            }}
-          >
-            Gaze: {liveGaze ? `${liveGaze.x}, ${liveGaze.y}` : '—'}
-          </div>
-
           {/* Calibration points */}
           {CALIBRATION_POINTS.map((point, index) => {
             const isActive = currentPointIndex === index;
@@ -525,11 +508,8 @@ export default function CalibratePage() {
           >
             <h2 style={{ fontSize: 28, marginBottom: 8 }}>Checking Accuracy...</h2>
             <p style={{ fontSize: 16 }}>
-              Stare directly at the blue dot. Keep your head still.
+              Stare directly at the character. Keep your head still.
             </p>
-            <div style={{ marginTop: 12, fontSize: 16, fontFamily: 'monospace', color: '#7CFC00' }}>
-              Gaze: {liveGaze ? `${liveGaze.x}, ${liveGaze.y}` : '—'}
-            </div>
           </div>
 
           {/* Rolling trace of the user's recent gaze points (max GAZE_TRAIL_MAX) */}
