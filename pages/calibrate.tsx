@@ -89,6 +89,7 @@ export default function CalibratePage() {
   const ROI_RADIUS = 200;           // px; a sample is "on target" within this radius
   const TIME_TO_SACCADE = 1000;     // ms for the eyes to reach each point before we collect
   const VALIDATION_DURATION = 2000; // ms of gaze collected per point
+  const INTER_TARGET_PAUSE = 3000;  // ms of blank screen between validation targets
   const PASS_THRESHOLD = 70;        // min % of samples within ROI (per point) to pass
   const DPI = 96;
   const GAZE_TRAIL_MAX = 20;        // max gaze-trace dots shown; oldest drops off
@@ -234,11 +235,17 @@ export default function CalibratePage() {
     const targets = getValidationPoints();
     const results: { label: string; percentInROI: number; offsetCm: number }[] = [];
 
-    for (const target of targets) {
+    for (const [i, target] of targets.entries()) {
+      // Blank pause between targets so the previous fixation doesn't bleed over.
+      if (i > 0) {
+        setValidationDot(null);
+        await sleep(INTER_TARGET_PAUSE);
+      }
+
       setValidationDot({ x: target.x, y: target.y });
       gazeCollectionRef.current = [];
 
-      // Chime as each validation target (rilakuma) appears.
+      // Chime as each validation target (star) appears.
       if (dingRef.current) {
         dingRef.current.currentTime = 0;
         dingRef.current.play().catch(() => {});
@@ -283,6 +290,15 @@ export default function CalibratePage() {
     setValidationResults([]);
     clearCalibrationData();
     startCalibration();
+  };
+
+  // Re-run the ROI validation only, keeping the existing calibration model.
+  const handleRedoAccuracyCheck = () => {
+    setIsComplete(false);
+    setAccuracyPercentage(null);
+    setValidationResults([]);
+    setGazeTrail([]);
+    runValidation();
   };
 
   const handleAcceptCalibration = () => {
@@ -389,21 +405,6 @@ export default function CalibratePage() {
             zIndex: 1000,
           }}
         >
-          {/* Progress indicator */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 20,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              color: 'white',
-              fontSize: 20,
-              fontWeight: 600,
-              textAlign: 'center',
-            }}
-          >
-            <div>Point {currentOrderIndex + 1} of {CALIBRATION_POINTS.length}</div>
-          </div>
 
           {/* Calibration points */}
           {CALIBRATION_POINTS.map((point, index) => {
@@ -433,7 +434,7 @@ export default function CalibratePage() {
                 aria-label={`Calibration point ${point.id}`}
               >
                 <img
-                  src="/Images/rilakuma.gif"
+                  src="/Images/Pulsating-violet-star.gif"
                   alt=""
                   style={{
                     width: '100%',
@@ -461,7 +462,7 @@ export default function CalibratePage() {
             <br />
             <strong>Instructions:</strong>
             <br />
-            A blue dot will appear in two places — first over the video area, then
+            A star will appear in two places — first over the video area, then
             over the suggested-videos area.
             <br />
             Stare directly at each dot and keep your head still without moving your mouse.
@@ -523,7 +524,7 @@ export default function CalibratePage() {
                 width: 12,
                 height: 12,
                 borderRadius: '50%',
-                background: '#7CFC00',
+                background: '#878786',
                 transform: 'translate(-50%, -50%)',
                 opacity: ((i + 1) / gazeTrail.length) * 0.8,
                 pointerEvents: 'none',
@@ -534,7 +535,7 @@ export default function CalibratePage() {
           {/* Validation target at the current position */}
           {validationDot && (
             <img
-              src="/Images/rilakuma.gif"
+              src="/Images/Pulsating-violet-star.gif"
               alt=""
               style={{
                 position: 'absolute',
@@ -613,22 +614,32 @@ export default function CalibratePage() {
             {accuracyPercentage >= 85
               ? 'Excellent accuracy in both regions.'
               : accuracyPercentage >= PASS_THRESHOLD
-              ? 'Good accuracy. You can proceed or recalibrate for better results.'
-              : 'Low accuracy in at least one region. We recommend recalibrating.'}
+              ? 'Good accuracy. You can proceed, or redo the calibration or the accuracy check for better results.'
+              : 'Low accuracy in at least one region. Redo the calibration, or just retry the accuracy check if you think you looked away.'}
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
             {accuracyPercentage < PASS_THRESHOLD && (
-              <Button onClick={handleRecalibrate} variant="primary" size="large">
-                Recalibrate
-              </Button>
+              <>
+                <Button onClick={handleRecalibrate} variant="primary" size="large">
+                  Redo Calibration
+                </Button>
+                <Button onClick={handleRedoAccuracyCheck} variant="secondary" size="large">
+                  Redo Accuracy Check Only
+                </Button>
+              </>
             )}
             <Button onClick={handleAcceptCalibration} variant={accuracyPercentage >= PASS_THRESHOLD ? 'primary' : 'secondary'} size="large">
               {accuracyPercentage >= PASS_THRESHOLD ? 'Continue to Settings' : 'Accept Anyway'}
             </Button>
             {accuracyPercentage >= PASS_THRESHOLD && (
-              <Button onClick={handleRecalibrate} variant="secondary" size="large">
-                Recalibrate
-              </Button>
+              <>
+                <Button onClick={handleRecalibrate} variant="secondary" size="large">
+                  Redo Calibration
+                </Button>
+                <Button onClick={handleRedoAccuracyCheck} variant="secondary" size="large">
+                  Redo Accuracy Check Only
+                </Button>
+              </>
             )}
           </div>
         </Card>
