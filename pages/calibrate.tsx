@@ -434,7 +434,7 @@ export default function CalibratePage() {
                 aria-label={`Calibration point ${point.id}`}
               >
                 <img
-                  src="/Images/Pulsating-violet-star.gif"
+                  src="/Images/rilakuma.gif"
                   alt=""
                   style={{
                     width: '100%',
@@ -535,7 +535,7 @@ export default function CalibratePage() {
           {/* Validation target at the current position */}
           {validationDot && (
             <img
-              src="/Images/Pulsating-violet-star.gif"
+              src="/Images/star_wiggle.gif"
               alt=""
               style={{
                 position: 'absolute',
