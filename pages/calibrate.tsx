@@ -81,15 +81,15 @@ export default function CalibratePage() {
     dingRef.current = new Audio('/Images/audio/ding.wav');
   }, []);
 
-  // Clicks required per point. Each click records one sample; 4 × 9 = 36 total,
+  // Clicks required per point. Each click records one sample; 3 × 9 = 27 total,
   // well within WebGazer's fixed 50-sample click buffer (dataWindow=50).
-  const CLICKS_PER_POINT = 4;
+  const CLICKS_PER_POINT = 3;
 
   // ROI validation config (jsPsych webgazer-validate style).
   const ROI_RADIUS = 200;           // px; a sample is "on target" within this radius
   const TIME_TO_SACCADE = 1000;     // ms for the eyes to reach each point before we collect
   const VALIDATION_DURATION = 2000; // ms of gaze collected per point
-  const INTER_TARGET_PAUSE = 3000;  // ms of blank screen between validation targets
+  const INTER_TARGET_PAUSE = 1500;  // ms of blank screen between validation targets
   const PASS_THRESHOLD = 70;        // min % of samples within ROI (per point) to pass
   const DPI = 96;
   const GAZE_TRAIL_MAX = 20;        // max gaze-trace dots shown; oldest drops off
