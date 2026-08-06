@@ -288,8 +288,8 @@ export default function ResearcherPage() {
                   boxSizing: 'border-box',
                 }}
               >
-                <option value="full">Full — three phases (5-min, 5-sec, set 2)</option>
-                <option value="short">Short — single phase (30-second clips)</option>
+                <option value="full">Full — three phases (1-min set, 5-sec, set 2)</option>
+                <option value="short">Short — single phase (1-min assigned set)</option>
               </select>
             </div>
 

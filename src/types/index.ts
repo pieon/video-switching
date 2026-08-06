@@ -3,7 +3,6 @@
 export type Mode = "non_switching" | "switching";
 export type VideoSet = 'A' | 'B';
 export type TrainingType = 'short' | 'full';
-export type Page = "login" | "admin" | "player" | "researcher";
 
 export interface User {
   id: string;
@@ -20,16 +19,6 @@ export interface Video {
   thumbnail: string;
   durationSec?: number;
   set?: VideoSet;
-}
-
-export interface TrackingEvent {
-  sessionId: string;
-  eventType: 'play' | 'pause' | 'switch' | 'complete';
-  timestamp: number;
-  duration?: number;
-  playbackPosition?: number;
-  fromVideoId?: string;
-  toVideoId?: string;
 }
 
 export interface SessionState {

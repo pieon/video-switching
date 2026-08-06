@@ -5,7 +5,6 @@ import { Mode, Video } from '@/types';
 interface VideoPlayerProps {
   mode: Mode;
   video: Video | null;
-  sessionId: string | null;
   onEnded: () => void;
   onPlay?: (position: number) => void;
   onPause?: (position: number) => void;
@@ -27,7 +26,6 @@ const btnStyle: CSSProperties = {
 export function VideoPlayer({
   mode,
   video,
-  sessionId,
   onEnded,
   onPlay,
   onPause,

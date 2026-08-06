@@ -264,7 +264,6 @@ export default function PlayerPage() {
           <VideoPlayer
             mode={mode}
             video={currentVideo}
-            sessionId={currentSessionId}
             onEnded={handleVideoEnded}
             onPlay={handlePlay}
             onPause={handlePause}

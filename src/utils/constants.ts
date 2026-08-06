@@ -14,14 +14,6 @@ export const MOCK_VIDEOS: Video[] = [
   { id: "4b", title: "Design Time",         url: "/videos/stimulant/2_SET B/10_Design Time.mp4",                        thumbnail: "/thumbs/stimulant_thumb/Set_B/10_Design Time thumb.jpg",                        set: 'B' },
 ];
 
-// Phase 1: 5-min videos, set 1
-export const TRAINING_VIDEOS_PHASE_1: Video[] = [
-  { id: "p1_1", title: "Daniel the Tiger",         url: "/videos/training/Training 1/Daniel the Tiger 5 mins.mp4",         thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
-  { id: "p1_2", title: "Lyla in the Loop",         url: "/videos/training/Training 1/Lyla in the Loop.mp4",                thumbnail: "/thumbs/training_thumb/training_1/Lyla in the Loop thumb.jpg" },
-  { id: "p1_3", title: "Ready Jet Go",             url: "/videos/training/Training 1/Ready Jet Go 5 mins.mp4",             thumbnail: "/thumbs/training_thumb/training_1/Ready Jet Go 5 mins thumb.jpg" },
-  { id: "p1_4", title: "Sid the Science Reporter", url: "/videos/training/Training 1/Sid the Science Reporter 5 mins.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
-];
-
 // Phase 2: 5-sec versions of the same set 1 videos (reuses Phase 1 thumbs)
 export const TRAINING_VIDEOS_PHASE_2: Video[] = [
   { id: "p2_1", title: "Daniel the Tiger",         url: "/videos/training/test_training/Daniel the Tiger 5 seconds.mp4", thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
@@ -36,14 +28,6 @@ export const TRAINING_VIDEOS_PHASE_3: Video[] = [
   { id: "p3_2", title: "Search for String",     url: "/videos/training/Training 2/Search for String.mp4",     thumbnail: "/thumbs/training_thumb/training_2/search_for_string_thumb.jpg" },
   { id: "p3_3", title: "Slot Problem",          url: "/videos/training/Training 2/Slot Problem.mp4",          thumbnail: "/thumbs/training_thumb/training_2/slot_problem_thumb.jpg" },
   { id: "p3_4", title: "Snout Wash Day",        url: "/videos/training/Training 2/Snout Wash Day.mp4",        thumbnail: "/thumbs/training_thumb/training_2/snout_wash_day_thumb.jpg" },
-];
-
-// Short training (single phase) — 30-second clips of set 1, reusing Phase 1 thumbs
-export const TRAINING_VIDEOS_SHORT: Video[] = [
-  { id: "ts_1", title: "Daniel Tiger",        url: "/videos/training/short_training/Daniel Tiger 30 seconds.mp4",        thumbnail: "/thumbs/training_thumb/training_1/Daniel the Tiger 5 mins thumb.jpg" },
-  { id: "ts_2", title: "Lyla in the Loop",    url: "/videos/training/short_training/Lyla in the loops 30 seconds.mp4",   thumbnail: "/thumbs/training_thumb/training_1/Lyla in the Loop thumb.jpg" },
-  { id: "ts_3", title: "Ready Jet Go",        url: "/videos/training/short_training/Ready Jet Go 30 seconds.mp4",        thumbnail: "/thumbs/training_thumb/training_1/Ready Jet Go 5 mins thumb.jpg" },
-  { id: "ts_4", title: "Sid the Science Kid", url: "/videos/training/short_training/Sid the Science Kid 30 seconds.mp4", thumbnail: "/thumbs/training_thumb/training_1/Sid the Science Reporter 5 mins thumb.jpg" },
 ];
 
 // Phase 1 alternative: 1-minute versions of the experiment stimulant videos,

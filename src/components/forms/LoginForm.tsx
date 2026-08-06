@@ -16,7 +16,7 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const { token, user } = await trackingService.login(participantId);
+      const { user } = await trackingService.login(participantId);
       console.log('Logged in:', user);
       login(user);
     } catch (err: any) {

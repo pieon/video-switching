@@ -7,7 +7,6 @@ import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import {
-  TRAINING_VIDEOS_SHORT,
   TRAINING_VIDEOS_PHASE_2,
   TRAINING_VIDEOS_PHASE_3,
   TRAINING_VIDEOS_ONE_MIN_A,
@@ -46,6 +45,7 @@ export default function TrainingPage() {
 
 function TrainingShort() {
   const router = useRouter();
+  const { videoSet } = useAuth();
   const trainingMode = (router.query.mode as Mode) || 'non_switching';
 
   type Phase = 'intro' | 'playing' | 'complete';
@@ -54,7 +54,8 @@ function TrainingShort() {
   const [current, setCurrent] = useState<string | null>(null);
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
 
-  const videos = TRAINING_VIDEOS_SHORT;
+  // 1-min videos of the participant's assigned experiment set.
+  const videos = videoSet === 'B' ? TRAINING_VIDEOS_ONE_MIN_B : TRAINING_VIDEOS_ONE_MIN_A;
 
   const currentVideo = useMemo(
     () => videos.find(v => v.id === current) ?? null,
@@ -388,7 +389,6 @@ function PlayingView({
           <VideoPlayer
             mode={trainingMode}
             video={currentVideo}
-            sessionId={null}
             onEnded={onVideoEnded}
             onPlay={noop}
             onPause={noop}
