@@ -70,7 +70,7 @@ export default function CalibratePage() {
   // Current validation target dot ({x,y} in px) and per-point ROI results.
   const [validationDot, setValidationDot] = useState<{ x: number; y: number } | null>(null);
   const [validationResults, setValidationResults] = useState<
-    { label: string; percentInROI: number; offsetCm: number }[]
+    { label: string; percentInROI: number; offsetCm: number; meanDistPx: number }[]
   >([]);
   // Toggled true only during the 3s accuracy window so the shared listener knows
   // when to buffer samples (vs. just updating the live readout).
@@ -129,6 +129,16 @@ export default function CalibratePage() {
     const cx = samples.reduce((s, p) => s + p.x, 0) / samples.length;
     const cy = samples.reduce((s, p) => s + p.y, 0) / samples.length;
     return Math.hypot(cx - target.x, cy - target.y);
+  };
+
+  // Mean per-sample distance (px) to the target — average gaze error, scatter included.
+  const calculateMeanDistancePx = (
+    samples: { x: number; y: number }[],
+    target: { x: number; y: number }
+  ) => {
+    if (samples.length === 0) return 0;
+    const total = samples.reduce((sum, p) => sum + Math.hypot(p.x - target.x, p.y - target.y), 0);
+    return total / samples.length;
   };
 
   useEffect(() => {
@@ -233,7 +243,7 @@ export default function CalibratePage() {
     setIsMeasuringAccuracy(true);
 
     const targets = getValidationPoints();
-    const results: { label: string; percentInROI: number; offsetCm: number }[] = [];
+    const results: { label: string; percentInROI: number; offsetCm: number; meanDistPx: number }[] = [];
 
     for (const [i, target] of targets.entries()) {
       // Blank pause between targets so the previous fixation doesn't bleed over.
@@ -260,12 +270,14 @@ export default function CalibratePage() {
       const samples = gazeCollectionRef.current.slice();
       const percentInROI = calculatePercentInROI(samples, target);
       const offsetCm = Math.round((calculateOffsetPx(samples, target) / DPI) * 2.54);
-      results.push({ label: target.label, percentInROI, offsetCm });
+      const meanDistPx = Math.round(calculateMeanDistancePx(samples, target));
+      results.push({ label: target.label, percentInROI, offsetCm, meanDistPx });
       console.log('[Validation]', target.label, {
         target: { x: Math.round(target.x), y: Math.round(target.y) },
         samples: samples.length,
         percentInROI,
         offsetCm,
+        meanDistPx,
       });
     }
 
@@ -604,6 +616,9 @@ export default function CalibratePage() {
                   <div style={{ fontSize: 13, color: '#666' }}>within target</div>
                   <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
                     {r.offsetCm}cm avg offset
+                  </div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                    {r.meanDistPx}px mean distance from center
                   </div>
                 </div>
               );
