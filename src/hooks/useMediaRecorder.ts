@@ -1,5 +1,6 @@
 // Hook for screen and webcam recording
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { appendChunk, getPendingChunks, clearChunks } from '@/utils/recordingStore';
 
 interface UseMediaRecorderOptions {
   participantId?: string;
@@ -35,6 +36,10 @@ export function useMediaRecorder({
   const participantIdRef = useRef(participantId);
   participantIdRef.current = participantId;
 
+  // Timestamp for the current recording, fixed at start so the crash-recovery
+  // copy and the normal copy share one filename.
+  const stampRef = useRef('');
+
   const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -46,11 +51,42 @@ export function useMediaRecorder({
     URL.revokeObjectURL(url);
   }, []);
 
+  // On mount, recover any recording a previous tab left behind. Chunks only
+  // survive here if stopRecording() never ran (tab closed, crash, power loss).
+  useEffect(() => {
+    (async () => {
+      const pending = await getPendingChunks();
+      if (pending.length === 0) return;
+
+      // One file per (kind, participant, session) — chunks are in write order.
+      const groups = new Map<string, Blob[]>();
+      for (const c of pending) {
+        const key = `${c.kind}_${c.participant}_${c.stamp}`;
+        const group = groups.get(key);
+        if (group) {
+          group.push(c.blob);
+        } else {
+          groups.set(key, [c.blob]);
+        }
+      }
+
+      for (const [key, blobs] of groups) {
+        downloadBlob(new Blob(blobs, { type: 'video/webm' }), `${key}_recovered.webm`);
+      }
+      console.warn(
+        `[useMediaRecorder] recovered ${groups.size} unsaved recording(s) from a previous session`
+      );
+      await clearChunks();
+    })();
+  }, [downloadBlob]);
+
   const startRecording = useCallback(async (overrideDeviceId?: string): Promise<boolean> => {
     setIsInitializing(true);
     setError(null);
     screenChunksRef.current = [];
     webcamChunksRef.current = [];
+    stampRef.current = new Date().toISOString().replace(/[:.]/g, '-');
+    await clearChunks();
 
     try {
       // Request screen capture
@@ -78,6 +114,12 @@ export function useMediaRecorder({
       screenRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           screenChunksRef.current.push(e.data);
+          appendChunk({
+            kind: 'screen',
+            participant: participantIdRef.current,
+            stamp: stampRef.current,
+            blob: e.data,
+          });
         }
       };
       screenRecorderRef.current = screenRecorder;
@@ -89,6 +131,12 @@ export function useMediaRecorder({
       webcamRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           webcamChunksRef.current.push(e.data);
+          appendChunk({
+            kind: 'webcam',
+            participant: participantIdRef.current,
+            stamp: stampRef.current,
+            blob: e.data,
+          });
         }
       };
       webcamRecorderRef.current = webcamRecorder;
@@ -114,7 +162,7 @@ export function useMediaRecorder({
   }, [cameraDeviceId]);
 
   const stopRecording = useCallback(() => {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = stampRef.current || new Date().toISOString().replace(/[:.]/g, '-');
     const participant = participantIdRef.current;
 
     // Stop screen recorder
@@ -131,6 +179,8 @@ export function useMediaRecorder({
       webcamRecorderRef.current.onstop = () => {
         const blob = new Blob(webcamChunksRef.current, { type: 'video/webm' });
         downloadBlob(blob, `webcam_${participant}_${timestamp}.webm`);
+        // Files are on disk now, so the crash-recovery copy is no longer needed.
+        clearChunks();
       };
       webcamRecorderRef.current.stop();
     }

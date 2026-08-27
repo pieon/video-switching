@@ -14,7 +14,7 @@ import { MOCK_VIDEOS } from '@/utils/constants';
 
 export default function PlayerPage() {
   const router = useRouter();
-  const { user, mode, isLoading } = useAuth();
+  const { user, mode, isLoading, logout } = useAuth();
   useExperimentTheme();
   const {
     completed,
@@ -89,8 +89,25 @@ export default function PlayerPage() {
   }, [videoSet]);
 
   const sessionAllComplete = videos.length > 0 && completed.length >= videos.length;
-  const sessionNumber = user ? (localStorage.getItem(`session_number_${user.participantId}`) === '2' ? 2 : 1) : 1;
+  // Read once per visit. The flag is bumped to '2' the moment session 1 ends,
+  // so recomputing it on every render would flip this page to the session-2
+  // ending mid-visit.
+  const [sessionNumber, setSessionNumber] = useState<1 | 2>(1);
+  useEffect(() => {
+    if (!user) return;
+    setSessionNumber(
+      localStorage.getItem(`session_number_${user.participantId}`) === '2' ? 2 : 1
+    );
+  }, [user]);
   const isLastSession = sessionNumber === 2;
+
+  // Advance to session 2 as soon as session 1 is finished — not when a button
+  // is clicked — so logging out (or closing the tab) still resumes correctly.
+  useEffect(() => {
+    if (sessionAllComplete && user && sessionNumber === 1) {
+      localStorage.setItem(`session_number_${user.participantId}`, '2');
+    }
+  }, [sessionAllComplete, user, sessionNumber]);
   const currentVideo = useMemo(
     () => videos.find((v) => v.id === current) ?? null,
     [videos, current]
@@ -201,30 +218,70 @@ export default function PlayerPage() {
             You've watched all videos for this session.
           </p>
           {isLastSession ? (
-            <p style={{ fontSize: 16, color: '#333' }}>
+            <>
+              <p style={{ fontSize: 16, color: '#ffffff', marginBottom: 24 }}>
               The experiment is complete. Thank you for participating!
             </p>
+              <button
+                onClick={() => {
+                  logout();
+                  router.push('/');
+                }}
+                style={{
+                  padding: '14px 32px',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  background: '#007AFF',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Log Out
+              </button>
+            </>
           ) : (
-            <button
-              onClick={() => {
-                if (user) {
-                  localStorage.setItem(`session_number_${user.participantId}`, '2');
-                }
-                router.push('/admin');
-              }}
-              style={{
-                padding: '14px 32px',
-                fontSize: 18,
-                fontWeight: 600,
-                background: '#007AFF',
-                color: 'white',
-                border: 'none',
-                borderRadius: 12,
-                cursor: 'pointer',
-              }}
-            >
-              Continue to Session 2
-            </button>
+            <>
+              <p style={{ fontSize: 16, color: '#ffffff', marginBottom: 24 }}>
+                Continue to Session 2 now, or log out.
+              </p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <button
+                  onClick={() => {
+                    logout();
+                    router.push('/');
+                  }}
+                  style={{
+                    padding: '14px 32px',
+                    fontSize: 18,
+                    fontWeight: 600,
+                    background: '#007AFF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Log Out
+                </button>
+                <button
+                  onClick={() => router.push('/admin')}
+                  style={{
+                    padding: '14px 32px',
+                    fontSize: 18,
+                    fontWeight: 600,
+                    background: 'white',
+                    color: '#007AFF',
+                    border: '2px solid #007AFF',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Continue to Session 2 Now
+                </button>
+              </div>
+            </>
           )}
         </div>
       </PageLayout>
@@ -234,28 +291,6 @@ export default function PlayerPage() {
   return (
     <PageLayout maxWidth={1400}>
       <HamburgerMenu />
-
-      {/* {isRecording && (
-        <button
-          onClick={stopRecording}
-          style={{
-            position: 'fixed',
-            top: 16,
-            left: 16,
-            padding: '8px 16px',
-            background: '#f44336',
-            opacity: 0.1,
-            color: 'white',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
-            zIndex: 1000,
-            fontSize: 14,
-          }}
-        >
-          ⏹ Stop Recording
-        </button>
-      )} */}
 
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}

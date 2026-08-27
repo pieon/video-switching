@@ -23,8 +23,12 @@ class TrackingService {
   constructor() {
     // Only access browser APIs if in browser environment
     if (typeof window !== 'undefined') {
-      // Load token from localStorage
-      this.token = localStorage.getItem('authToken');
+      // Load token from sessionStorage — it is cleared when the tab closes, so
+      // the next participant has to log in with their own ID rather than
+      // silently inheriting the previous session.
+      this.token = sessionStorage.getItem('authToken');
+      // Clear tokens left in localStorage by earlier builds.
+      localStorage.removeItem('authToken');
 
       // Start auto-flush
       this.startAutoFlush();
@@ -42,7 +46,7 @@ class TrackingService {
   setToken(token: string) {
     this.token = token;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('authToken', token);
+      sessionStorage.setItem('authToken', token);
     }
   }
 
@@ -59,7 +63,7 @@ class TrackingService {
   clearToken() {
     this.token = null;
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken');
+      sessionStorage.removeItem('authToken');
     }
   }
 
