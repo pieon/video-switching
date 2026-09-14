@@ -6,19 +6,6 @@ import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { Mode, VideoSet } from '@/types';
 
-function getSessionNumber(participantId: string): 1 | 2 {
-  const stored = localStorage.getItem(`session_number_${participantId}`);
-  return stored === '2' ? 2 : 1;
-}
-
-function oppositeMode(m: Mode): Mode {
-  return m === 'switching' ? 'non_switching' : 'switching';
-}
-
-function oppositeSet(s: VideoSet): VideoSet {
-  return s === 'A' ? 'B' : 'A';
-}
-
 export default function AdminPage() {
   const router = useRouter();
   const { user, setMode, setVideoSet, isLoading, logout } = useAuth();
@@ -42,13 +29,10 @@ export default function AdminPage() {
     );
   }
 
-  const sessionNumber = getSessionNumber(user.participantId);
-  const currentMode: Mode = sessionNumber === 1
-    ? user.condition
-    : oppositeMode(user.condition);
-  const currentSet: VideoSet = sessionNumber === 1
-    ? (user.videoSet ?? 'A')
-    : oppositeSet(user.videoSet ?? 'A');
+  // One participant ID = one condition. A crossover is run by creating a
+  // second participant ID with the opposite assignment.
+  const currentMode: Mode = user.condition;
+  const currentSet: VideoSet = user.videoSet ?? 'A';
 
   const handleStart = () => {
     setMode(currentMode);
@@ -68,7 +52,7 @@ export default function AdminPage() {
       </div>
 
       <h1 style={{ textAlign: 'center', marginBottom: 32 }}>
-        Session {sessionNumber} of 2
+        Session Setup
       </h1>
 
       <Card>
@@ -125,7 +109,7 @@ export default function AdminPage() {
         </div>
 
         <Button onClick={handleStart} fullWidth size="large">
-          Start Session {sessionNumber}
+          Start Session
         </Button>
       </Card>
     </PageLayout>

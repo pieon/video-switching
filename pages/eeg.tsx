@@ -8,6 +8,7 @@ import { PageLayout } from '@/components/layout';
 import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useRecording } from '@/context/RecordingContext';
+import { usePhaseLog } from '@/hooks/usePhaseLog';
 
 const CAMERA_STORAGE_KEY = 'selected_camera_device_id';
 
@@ -21,6 +22,9 @@ export default function EEGPage() {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [startError, setStartError] = useState<string | null>(null);
+
+  // Baseline video exposure: first play through natural end.
+  const { startPhase, endPhase } = usePhaseLog('eeg_baseline');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -143,8 +147,9 @@ export default function EEGPage() {
         <video
           src="/videos/training/EEG_Baseline_Video.mp4"
           controls
-          loop
           playsInline
+          onPlay={startPhase}
+          onEnded={() => endPhase()}
           style={{
             width: '100%',
             borderRadius: 12,

@@ -159,6 +159,44 @@ class TrackingService {
   }
 
   /**
+   * Open a phase log (EEG baseline / training / experiment) and return its id.
+   * Returns null on failure — phase logging must never block the study.
+   */
+  async startPhase(
+    phase: 'eeg_baseline' | 'training' | 'experiment'
+  ): Promise<string | null> {
+    try {
+      const response = await fetch(`${API_URL}/phases/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.token}`,
+        },
+        body: JSON.stringify({ phase }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return data.data.id as string;
+    } catch (err) {
+      console.error('[trackingService] startPhase failed', err);
+      return null;
+    }
+  }
+
+  /** Close a phase log. keepalive lets it survive page unload. */
+  async endPhase(id: string, keepalive = false): Promise<void> {
+    try {
+      await fetch(`${API_URL}/phases/${id}/end`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${this.token}` },
+        keepalive,
+      });
+    } catch (err) {
+      console.error('[trackingService] endPhase failed', err);
+    }
+  }
+
+  /**
    * Track a single event (adds to queue)
    */
   trackEvent(event: TrackingEvent) {

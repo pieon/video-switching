@@ -94,10 +94,7 @@ export default function ResearcherPage() {
       const response = await fetch(`${API_URL}/users/${dbId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete participant');
 
-      // Gaze samples cascade-delete with the user on the backend; just clear
-      // the local per-participant session counter.
-      localStorage.removeItem(`session_number_${participantId}`);
-
+      // Gaze samples, sessions and phase logs cascade-delete with the user.
       fetchParticipants();
     } catch (err: any) {
       alert(`Delete failed: ${err.message}`);
@@ -215,7 +212,7 @@ export default function ResearcherPage() {
                   fontWeight: 600,
                 }}
               >
-                Starting Mode:
+                Mode:
               </label>
               <select
                 value={newCondition}
@@ -261,9 +258,6 @@ export default function ResearcherPage() {
                 <option value="A">Set A (Cafe Chaos, One of These Goats, Buried Treasure, Building Bridges)</option>
                 <option value="B">Set B (Zadies Shell Shuffle, Pokey Plant, Lemonade Problem, Design Time)</option>
               </select>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                Session 2 will automatically use the opposite set + opposite mode.
-              </div>
             </div>
 
             <div style={{ marginBottom: 16 }}>

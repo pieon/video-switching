@@ -6,6 +6,7 @@ import { VideoPlayer, VideoGrid } from '@/components/video';
 import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
+import { usePhaseLog } from '@/hooks/usePhaseLog';
 import {
   TRAINING_VIDEOS_PHASE_2,
   TRAINING_VIDEOS_PHASE_3,
@@ -50,6 +51,15 @@ function TrainingShort() {
 
   type Phase = 'intro' | 'playing' | 'complete';
   const [phase, setPhase] = useState<Phase>('intro');
+
+  // Whole-training span: arriving here through reaching the completion screen.
+  const { startPhase, endPhase } = usePhaseLog('training');
+  useEffect(() => {
+    startPhase();
+  }, [startPhase]);
+  useEffect(() => {
+    if (phase === 'complete') endPhase();
+  }, [phase, endPhase]);
   const [completed, setCompleted] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
@@ -146,6 +156,15 @@ function TrainingFull() {
     | 'complete';
 
   const [phase, setPhase] = useState<Phase>('intro1');
+
+  // Whole-training span: arriving here through reaching the completion screen.
+  const { startPhase, endPhase } = usePhaseLog('training');
+  useEffect(() => {
+    startPhase();
+  }, [startPhase]);
+  useEffect(() => {
+    if (phase === 'complete') endPhase();
+  }, [phase, endPhase]);
   const [completed1, setCompleted1] = useState<string[]>([]);
   const [completed2, setCompleted2] = useState<string[]>([]);
   const [completed3, setCompleted3] = useState<string[]>([]);

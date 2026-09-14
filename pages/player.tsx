@@ -9,6 +9,7 @@ import { useSession } from '@/hooks/useSession';
 import { GazeData } from '@/hooks/useWebGazer';
 import { useWebGazerContext } from '@/context/WebGazerContext';
 import { useGazeLogger } from '@/hooks/useGazeLogger';
+import { usePhaseLog } from '@/hooks/usePhaseLog';
 import { trackingService } from '@/services/trackingService';
 import { MOCK_VIDEOS } from '@/utils/constants';
 
@@ -89,25 +90,15 @@ export default function PlayerPage() {
   }, [videoSet]);
 
   const sessionAllComplete = videos.length > 0 && completed.length >= videos.length;
-  // Read once per visit. The flag is bumped to '2' the moment session 1 ends,
-  // so recomputing it on every render would flip this page to the session-2
-  // ending mid-visit.
-  const [sessionNumber, setSessionNumber] = useState<1 | 2>(1);
-  useEffect(() => {
-    if (!user) return;
-    setSessionNumber(
-      localStorage.getItem(`session_number_${user.participantId}`) === '2' ? 2 : 1
-    );
-  }, [user]);
-  const isLastSession = sessionNumber === 2;
 
-  // Advance to session 2 as soon as session 1 is finished — not when a button
-  // is clicked — so logging out (or closing the tab) still resumes correctly.
+  // Whole experiment-block span, alongside the per-video VideoSession rows.
+  const { startPhase, endPhase } = usePhaseLog('experiment');
   useEffect(() => {
-    if (sessionAllComplete && user && sessionNumber === 1) {
-      localStorage.setItem(`session_number_${user.participantId}`, '2');
-    }
-  }, [sessionAllComplete, user, sessionNumber]);
+    if (user) startPhase();
+  }, [user, startPhase]);
+  useEffect(() => {
+    if (sessionAllComplete) endPhase();
+  }, [sessionAllComplete, endPhase]);
   const currentVideo = useMemo(
     () => videos.find((v) => v.id === current) ?? null,
     [videos, current]
@@ -213,76 +204,31 @@ export default function PlayerPage() {
     return (
       <PageLayout maxWidth={600} style={{ marginTop: 80 }}>
         <div style={{ textAlign: 'center' }}>
-          <h1 style={{ color: '#4caf50' }}>Session {sessionNumber} Complete!</h1>
+          <h1 style={{ color: '#4caf50' }}>Session Complete!</h1>
           <p style={{ fontSize: 16, color: '#666', marginBottom: 32 }}>
             You've watched all videos for this session.
           </p>
-          {isLastSession ? (
-            <>
-              <p style={{ fontSize: 16, color: '#ffffff', marginBottom: 24 }}>
-              The experiment is complete. Thank you for participating!
-            </p>
-              <button
-                onClick={() => {
-                  logout();
-                  router.push('/');
-                }}
-                style={{
-                  padding: '14px 32px',
-                  fontSize: 18,
-                  fontWeight: 600,
-                  background: '#007AFF',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                }}
-              >
-                Log Out
-              </button>
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 16, color: '#ffffff', marginBottom: 24 }}>
-                Continue to Session 2 now, or log out.
-              </p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                <button
-                  onClick={() => {
-                    logout();
-                    router.push('/');
-                  }}
-                  style={{
-                    padding: '14px 32px',
-                    fontSize: 18,
-                    fontWeight: 600,
-                    background: '#007AFF',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 12,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Log Out
-                </button>
-                <button
-                  onClick={() => router.push('/admin')}
-                  style={{
-                    padding: '14px 32px',
-                    fontSize: 18,
-                    fontWeight: 600,
-                    background: 'white',
-                    color: '#007AFF',
-                    border: '2px solid #007AFF',
-                    borderRadius: 12,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Continue to Session 2 Now
-                </button>
-              </div>
-            </>
-          )}
+          <p style={{ fontSize: 16, color: '#ffffff', marginBottom: 24 }}>
+            The experiment is complete. Thank you for participating!
+          </p>
+          <button
+            onClick={() => {
+              logout();
+              router.push('/');
+            }}
+            style={{
+              padding: '14px 32px',
+              fontSize: 18,
+              fontWeight: 600,
+              background: '#007AFF',
+              color: 'white',
+              border: 'none',
+              borderRadius: 12,
+              cursor: 'pointer',
+            }}
+          >
+            Log Out
+          </button>
         </div>
       </PageLayout>
     );

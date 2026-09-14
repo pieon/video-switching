@@ -1,5 +1,6 @@
 const { prisma } = require('../config/database');
 const { Parser } = require('json2csv');
+const { toEastern } = require('../utils/datetime');
 
 /**
  * Store a batch of raw gaze samples for the authenticated user.
@@ -57,7 +58,7 @@ async function exportGazeAsCSV(req, res) {
       x: s.x,
       y: s.y,
       timestamp: s.timestamp,
-      createdAt: s.createdAt.toISOString(),
+      createdAt: toEastern(s.createdAt),
     }));
 
     const parser = new Parser({

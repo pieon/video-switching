@@ -1,5 +1,6 @@
 const { prisma } = require('../config/database');
 const { Parser } = require('json2csv');
+const { toEastern } = require('../utils/datetime');
 
 /**
  * Export all data as CSV
@@ -37,15 +38,13 @@ async function exportDataAsCSV(req, res) {
         session_id: event.sessionId,
         video_id: event.session.videoId,
         event_type: event.eventType,
-        timestamp: event.timestamp.toISOString(),
+        timestamp: toEastern(event.timestamp),
         duration_seconds: event.duration,
         from_video_id: event.fromVideoId,
         to_video_id: event.toVideoId,
         playback_position: event.playbackPosition,
-        session_started_at: event.session.startedAt.toISOString(),
-        session_completed_at: event.session.completedAt
-          ? event.session.completedAt.toISOString()
-          : null,
+        session_started_at: toEastern(event.session.startedAt),
+        session_completed_at: toEastern(event.session.completedAt),
       }));
 
       const parser = new Parser();
@@ -56,40 +55,80 @@ async function exportDataAsCSV(req, res) {
       res.send(csv);
 
     } else if (type === 'sessions') {
-      // Export all sessions
-      const sessions = await prisma.videoSession.findMany({
-        include: {
-          user: {
-            select: {
-              participantId: true,
-              condition: true,
-            },
+      // One row per stage, plus one row per video watched. Rows are ordered by
+      // start time within each participant, so a participant's video rows fall
+      // between their "experiment" row and its end — the experiment stage opens
+      // before any video is selected.
+      const [phaseLogs, sessions] = await Promise.all([
+        prisma.phaseLog.findMany({
+          include: {
+            user: { select: { participantId: true, condition: true } },
           },
-          _count: {
-            select: {
-              events: true,
-            },
+        }),
+        prisma.videoSession.findMany({
+          include: {
+            user: { select: { participantId: true, condition: true } },
+            _count: { select: { events: true } },
           },
-        },
-        orderBy: {
-          startedAt: 'asc',
-        },
+        }),
+      ]);
+
+      const seconds = (from, to) =>
+        from && to ? Math.round((to.getTime() - from.getTime()) / 1000) : null;
+
+      // [sortable start time, row] so stages and videos can be interleaved.
+      const rows = [
+        ...phaseLogs.map((log) => [
+          log.startedAt,
+          {
+            participant_id: log.user.participantId,
+            condition: log.user.condition,
+            phase: log.phase,
+            video_id: '',
+            started_at: toEastern(log.startedAt),
+            ended_at: toEastern(log.endedAt),
+            duration_seconds: seconds(log.startedAt, log.endedAt),
+            event_count: '',
+            session_id: log.phase === 'eeg_baseline' ? log.id : '',
+          },
+        ]),
+        ...sessions.map((session) => [
+          session.startedAt,
+          {
+            participant_id: session.user.participantId,
+            condition: session.user.condition,
+            phase: 'video',
+            video_id: session.videoId,
+            started_at: toEastern(session.startedAt),
+            ended_at: toEastern(session.completedAt),
+            duration_seconds: seconds(session.startedAt, session.completedAt),
+            event_count: session._count.events,
+            session_id: '',
+          },
+        ]),
+      ];
+
+      rows.sort(([aTime, a], [bTime, b]) =>
+        a.participant_id === b.participant_id
+          ? aTime - bTime
+          : a.participant_id.localeCompare(b.participant_id)
+      );
+
+      const flattenedData = rows.map(([, row]) => row);
+
+      const parser = new Parser({
+        fields: [
+          'participant_id',
+          'condition',
+          'phase',
+          'video_id',
+          'started_at',
+          'ended_at',
+          'duration_seconds',
+          'event_count',
+          'session_id',
+        ],
       });
-
-      const flattenedData = sessions.map(session => ({
-        session_id: session.id,
-        participant_id: session.user.participantId,
-        condition: session.user.condition,
-        video_id: session.videoId,
-        mode: session.mode,
-        started_at: session.startedAt.toISOString(),
-        completed_at: session.completedAt
-          ? session.completedAt.toISOString()
-          : null,
-        event_count: session._count.events,
-      }));
-
-      const parser = new Parser();
       const csv = parser.parse(flattenedData);
 
       res.setHeader('Content-Type', 'text/csv');
@@ -112,10 +151,9 @@ async function exportDataAsCSV(req, res) {
       });
 
       const flattenedData = users.map(user => ({
-        user_id: user.id,
         participant_id: user.participantId,
         condition: user.condition,
-        created_at: user.createdAt.toISOString(),
+        created_at: toEastern(user.createdAt),
         session_count: user._count.sessions,
       }));
 
@@ -126,10 +164,45 @@ async function exportDataAsCSV(req, res) {
       res.setHeader('Content-Disposition', 'attachment; filename=participants_export.csv');
       res.send(csv);
 
+    } else if (type === 'phases') {
+      // Export stage timings: EEG baseline, training, experiment
+      const logs = await prisma.phaseLog.findMany({
+        include: {
+          user: {
+            select: {
+              participantId: true,
+              condition: true,
+            },
+          },
+        },
+        orderBy: {
+          startedAt: 'asc',
+        },
+      });
+
+      const flattenedData = logs.map(log => ({
+        phase_log_id: log.id,
+        participant_id: log.user.participantId,
+        condition: log.user.condition,
+        phase: log.phase,
+        started_at: toEastern(log.startedAt),
+        ended_at: toEastern(log.endedAt),
+        duration_seconds: log.endedAt
+          ? Math.round((log.endedAt.getTime() - log.startedAt.getTime()) / 1000)
+          : null,
+      }));
+
+      const parser = new Parser();
+      const csv = parser.parse(flattenedData);
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=phases_export.csv');
+      res.send(csv);
+
     } else {
       return res.status(400).json({
         success: false,
-        error: 'Invalid type. Must be one of: events, sessions, participants',
+        error: 'Invalid type. Must be one of: events, sessions, participants, phases',
       });
     }
 

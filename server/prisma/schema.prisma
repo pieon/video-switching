@@ -23,8 +23,24 @@ model User {
   updatedAt     DateTime       @updatedAt
   sessions      VideoSession[]
   gazeSamples   GazeSample[]
+  phaseLogs     PhaseLog[]
 
   @@map("users")
+}
+
+// Start/end of each stage of the study: the EEG baseline video, training, and
+// the experiment block. A row with endedAt = null means the participant left
+// that stage without finishing it.
+// Valid values for phase: "eeg_baseline" | "training" | "experiment"
+model PhaseLog {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phase         String
+  startedAt     DateTime @default(now())
+  endedAt       DateTime?
+
+  @@map("phase_logs")
 }
 
 model GazeSample {

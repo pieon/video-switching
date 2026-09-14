@@ -16,7 +16,7 @@ interface UseMediaRecorderReturn {
 }
 
 export function useMediaRecorder({
-  participantId = 'unknown',
+  participantId,
   cameraDeviceId,
 }: UseMediaRecorderOptions = {}): UseMediaRecorderReturn {
   const [isRecording, setIsRecording] = useState(false);
@@ -30,14 +30,20 @@ export function useMediaRecorder({
   const screenStreamRef = useRef<MediaStream | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
 
-  // Keep the latest participantId in a ref so filenames are correct even when
+  // Keep the participantId in a ref so filenames are correct even when
   // stopRecording is triggered from a closure created before login (the
   // provider mounts before the participant is known).
-  const participantIdRef = useRef(participantId);
-  participantIdRef.current = participantId;
+  //
+  // Only ever overwrite it with a real id: logging out sets user to null, and
+  // stopRecording runs on the navigation that logout triggers — clearing the
+  // ref first would name the files "unknown_webcam.webm".
+  const participantIdRef = useRef<string>('unknown');
+  if (participantId) {
+    participantIdRef.current = participantId;
+  }
 
-  // Timestamp for the current recording, fixed at start so the crash-recovery
-  // copy and the normal copy share one filename.
+  // Identifies the current recording run. Only used to group crash-recovery
+  // chunks — filenames are <participantId>_<kind>.webm with no timestamp.
   const stampRef = useRef('');
 
   const downloadBlob = useCallback((blob: Blob, filename: string) => {
@@ -59,19 +65,23 @@ export function useMediaRecorder({
       if (pending.length === 0) return;
 
       // One file per (kind, participant, session) — chunks are in write order.
-      const groups = new Map<string, Blob[]>();
+      // The stamp is only a grouping key; it is not part of the filename.
+      const groups = new Map<string, { kind: string; participant: string; blobs: Blob[] }>();
       for (const c of pending) {
-        const key = `${c.kind}_${c.participant}_${c.stamp}`;
+        const key = `${c.kind}|${c.participant}|${c.stamp}`;
         const group = groups.get(key);
         if (group) {
-          group.push(c.blob);
+          group.blobs.push(c.blob);
         } else {
-          groups.set(key, [c.blob]);
+          groups.set(key, { kind: c.kind, participant: c.participant, blobs: [c.blob] });
         }
       }
 
-      for (const [key, blobs] of groups) {
-        downloadBlob(new Blob(blobs, { type: 'video/webm' }), `${key}_recovered.webm`);
+      for (const { kind, participant, blobs } of groups.values()) {
+        downloadBlob(
+          new Blob(blobs, { type: 'video/webm' }),
+          `${participant}_${kind}_recovered.webm`
+        );
       }
       console.warn(
         `[useMediaRecorder] recovered ${groups.size} unsaved recording(s) from a previous session`
@@ -162,14 +172,13 @@ export function useMediaRecorder({
   }, [cameraDeviceId]);
 
   const stopRecording = useCallback(() => {
-    const timestamp = stampRef.current || new Date().toISOString().replace(/[:.]/g, '-');
     const participant = participantIdRef.current;
 
     // Stop screen recorder
     if (screenRecorderRef.current && screenRecorderRef.current.state !== 'inactive') {
       screenRecorderRef.current.onstop = () => {
         const blob = new Blob(screenChunksRef.current, { type: 'video/webm' });
-        downloadBlob(blob, `screen_${participant}_${timestamp}.webm`);
+        downloadBlob(blob, `${participant}_screen.webm`);
       };
       screenRecorderRef.current.stop();
     }
@@ -178,7 +187,7 @@ export function useMediaRecorder({
     if (webcamRecorderRef.current && webcamRecorderRef.current.state !== 'inactive') {
       webcamRecorderRef.current.onstop = () => {
         const blob = new Blob(webcamChunksRef.current, { type: 'video/webm' });
-        downloadBlob(blob, `webcam_${participant}_${timestamp}.webm`);
+        downloadBlob(blob, `${participant}_webcam.webm`);
         // Files are on disk now, so the crash-recovery copy is no longer needed.
         clearChunks();
       };
