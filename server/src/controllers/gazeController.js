@@ -47,7 +47,20 @@ async function trackGazeBatch(req, res) {
  */
 async function exportGazeAsCSV(req, res) {
   try {
+    const { participantId } = req.query;
+
+    if (participantId) {
+      const exists = await prisma.user.findUnique({ where: { participantId } });
+      if (!exists) {
+        return res.status(404).json({
+          success: false,
+          error: `No participant with id "${participantId}"`,
+        });
+      }
+    }
+
     const samples = await prisma.gazeSample.findMany({
+      where: participantId ? { user: { participantId } } : {},
       include: { user: { select: { participantId: true } } },
       orderBy: { createdAt: 'asc' },
     });
@@ -67,7 +80,11 @@ async function exportGazeAsCSV(req, res) {
     const csv = parser.parse(rows);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=gaze_samples_export.csv');
+    const filePrefix = participantId ? `${participantId}_` : '';
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=${filePrefix}gaze_samples_export.csv`
+    );
     res.send(csv);
   } catch (error) {
     console.error('Export gaze error:', error);

@@ -8,11 +8,25 @@ const { toEastern } = require('../utils/datetime');
  */
 async function exportDataAsCSV(req, res) {
   try {
-    const { type = 'events' } = req.query;
+    const { type = 'events', participantId } = req.query;
+
+    // Optional per-participant export. Same columns as the full export, just
+    // filtered, so downstream analysis scripts work on either file.
+    if (participantId) {
+      const exists = await prisma.user.findUnique({ where: { participantId } });
+      if (!exists) {
+        return res.status(404).json({
+          success: false,
+          error: `No participant with id "${participantId}"`,
+        });
+      }
+    }
+    const filePrefix = participantId ? `${participantId}_` : '';
 
     if (type === 'events') {
       // Export all events with session and user data
       const events = await prisma.videoEvent.findMany({
+        where: participantId ? { session: { user: { participantId } } } : {},
         include: {
           session: {
             include: {
@@ -51,7 +65,7 @@ async function exportDataAsCSV(req, res) {
       const csv = parser.parse(flattenedData);
 
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=events_export.csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}events_export.csv`);
       res.send(csv);
 
     } else if (type === 'sessions') {
@@ -61,11 +75,13 @@ async function exportDataAsCSV(req, res) {
       // before any video is selected.
       const [phaseLogs, sessions] = await Promise.all([
         prisma.phaseLog.findMany({
+          where: participantId ? { user: { participantId } } : {},
           include: {
             user: { select: { participantId: true, condition: true } },
           },
         }),
         prisma.videoSession.findMany({
+          where: participantId ? { user: { participantId } } : {},
           include: {
             user: { select: { participantId: true, condition: true } },
             _count: { select: { events: true } },
@@ -132,12 +148,13 @@ async function exportDataAsCSV(req, res) {
       const csv = parser.parse(flattenedData);
 
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=sessions_export.csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}sessions_export.csv`);
       res.send(csv);
 
     } else if (type === 'participants') {
       // Export participant summary
       const users = await prisma.user.findMany({
+        where: participantId ? { participantId } : {},
         include: {
           _count: {
             select: {
@@ -161,12 +178,13 @@ async function exportDataAsCSV(req, res) {
       const csv = parser.parse(flattenedData);
 
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=participants_export.csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}participants_export.csv`);
       res.send(csv);
 
     } else if (type === 'phases') {
       // Export stage timings: EEG baseline, training, experiment
       const logs = await prisma.phaseLog.findMany({
+        where: participantId ? { user: { participantId } } : {},
         include: {
           user: {
             select: {
@@ -196,7 +214,7 @@ async function exportDataAsCSV(req, res) {
       const csv = parser.parse(flattenedData);
 
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=phases_export.csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}phases_export.csv`);
       res.send(csv);
 
     } else {

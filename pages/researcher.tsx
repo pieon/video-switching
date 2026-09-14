@@ -18,6 +18,10 @@ export default function ResearcherPage() {
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  // Delete buttons stay hidden until the researcher opts into edit mode, so a
+  // participant's data cannot be wiped by a single stray click.
+  const [editMode, setEditMode] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -103,43 +107,66 @@ export default function ResearcherPage() {
     }
   };
 
+  // Shared download helper. Omitting participantId gives the full study export;
+  // passing one gives the same columns filtered to that participant.
+  const downloadCSV = async (path: string, filename: string) => {
+    const response = await fetch(`${API_URL}${path}`);
+    if (!response.ok) {
+      const message = await response
+        .json()
+        .then((r) => r.error)
+        .catch(() => 'Export failed');
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
   const handleExportCSV = async (
-    type: 'events' | 'sessions' | 'participants'
+    type: 'events' | 'sessions' | 'participants' | 'phases',
+    participantId?: string
   ) => {
     try {
-      const response = await fetch(`${API_URL}/analytics/export?type=${type}`);
-      if (!response.ok) throw new Error('Export failed');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${type}_export.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const query = participantId
+        ? `?type=${type}&participantId=${encodeURIComponent(participantId)}`
+        : `?type=${type}`;
+      const prefix = participantId ? `${participantId}_` : '';
+      await downloadCSV(`/analytics/export${query}`, `${prefix}${type}_export.csv`);
     } catch (err: any) {
       alert(`Export failed: ${err.message}`);
     }
   };
 
-  const handleExportGaze = async () => {
+  const handleExportGaze = async (participantId?: string) => {
     try {
-      const response = await fetch(`${API_URL}/gaze/export`);
-      if (!response.ok) throw new Error('Export failed');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'gaze_samples_export.csv';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const query = participantId
+        ? `?participantId=${encodeURIComponent(participantId)}`
+        : '';
+      const prefix = participantId ? `${participantId}_` : '';
+      await downloadCSV(`/gaze/export${query}`, `${prefix}gaze_samples_export.csv`);
     } catch (err: any) {
       alert(`Export failed: ${err.message}`);
+    }
+  };
+
+  // All three CSVs for one participant, in sequence so the browser does not
+  // treat them as a burst of unrequested downloads.
+  const handleExportParticipant = async (participantId: string) => {
+    setExportingId(participantId);
+    try {
+      await handleExportCSV('events', participantId);
+      await handleExportCSV('sessions', participantId);
+      await handleExportGaze(participantId);
+    } finally {
+      setExportingId(null);
     }
   };
 
@@ -357,19 +384,47 @@ export default function ResearcherPage() {
             <h2 style={{ margin: 0, fontSize: 18 }}>
               Participants ({participants.length})
             </h2>
-            <Button
-              onClick={fetchParticipants}
-              variant="secondary"
-              size="small"
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Button
+                onClick={fetchParticipants}
+                variant="secondary"
+                size="small"
+                style={{
+                  background: 'white',
+                  color: '#333',
+                  border: '1px solid #ddd',
+                }}
+              >
+                Refresh
+              </Button>
+              <Button
+                onClick={() => setEditMode(!editMode)}
+                variant="secondary"
+                size="small"
+                style={{
+                  background: editMode ? '#fff0f0' : 'white',
+                  color: editMode ? '#d32f2f' : '#333',
+                  border: `1px solid ${editMode ? '#d32f2f' : '#ddd'}`,
+                }}
+              >
+                {editMode ? 'Done' : 'Edit'}
+              </Button>
+            </div>
+          </div>
+          {editMode && (
+            <div
               style={{
-                background: 'white',
-                color: '#333',
-                border: '1px solid #ddd',
+                padding: '10px 16px',
+                background: '#fff0f0',
+                borderBottom: '1px solid #f5c6c6',
+                fontSize: 13,
+                color: '#d32f2f',
               }}
             >
-              Refresh
-            </Button>
-          </div>
+              Edit mode — deleting a participant also removes their sessions,
+              events and gaze samples. This cannot be undone.
+            </div>
+          )}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr
@@ -379,12 +434,15 @@ export default function ResearcherPage() {
                 }}
               >
                 <th style={{ padding: 12, textAlign: 'left' }}>Participant ID</th>
-                <th style={{ padding: 12, textAlign: 'left' }}>Starting Mode</th>
-                <th style={{ padding: 12, textAlign: 'left' }}>Starting Set</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Mode</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Set</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Training</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Sessions</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>Created</th>
-                <th style={{ padding: 12 }}></th>
+                <th style={{ padding: 12, textAlign: 'left' }}>Data</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>
+                  {editMode ? 'Delete' : ''}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -440,22 +498,66 @@ export default function ResearcherPage() {
                     {new Date(p.createdAt).toLocaleDateString()}
                   </td>
                   <td style={{ padding: 12 }}>
-                    <button
-                      onClick={() => handleDeleteParticipant(p.participantId, p.id)}
-                      disabled={deletingId === p.id}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        background: deletingId === p.id ? '#eee' : '#fff0f0',
-                        color: '#d32f2f',
-                        border: '1px solid #d32f2f',
-                        borderRadius: 6,
-                        cursor: deletingId === p.id ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      {deletingId === p.id ? 'Deleting...' : 'Delete'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => handleExportParticipant(p.participantId)}
+                        disabled={exportingId === p.participantId}
+                        title="Download events, sessions and gaze CSVs for this participant"
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: exportingId === p.participantId ? '#eee' : '#E3F2FF',
+                          color: '#007AFF',
+                          border: '1px solid #007AFF',
+                          borderRadius: 6,
+                          cursor: exportingId === p.participantId ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {exportingId === p.participantId ? 'Downloading...' : 'All 3 CSVs'}
+                      </button>
+                      {([
+                        ['Events', () => handleExportCSV('events', p.participantId)],
+                        ['Sessions', () => handleExportCSV('sessions', p.participantId)],
+                        ['Gaze', () => handleExportGaze(p.participantId)],
+                      ] as const).map(([label, onClick]) => (
+                        <button
+                          key={label}
+                          onClick={onClick}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            background: '#fff',
+                            color: '#555',
+                            border: '1px solid #ccc',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    {editMode && (
+                      <button
+                        onClick={() => handleDeleteParticipant(p.participantId, p.id)}
+                        disabled={deletingId === p.id}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: deletingId === p.id ? '#eee' : '#fff0f0',
+                          color: '#d32f2f',
+                          border: '1px solid #d32f2f',
+                          borderRadius: 6,
+                          cursor: deletingId === p.id ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {deletingId === p.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
