@@ -163,7 +163,7 @@ class TrackingService {
    * Returns null on failure — phase logging must never block the study.
    */
   async startPhase(
-    phase: 'eeg_baseline' | 'training' | 'experiment'
+    phase: 'eeg_baseline' | 'training' | 'experiment' | 'recording'
   ): Promise<string | null> {
     try {
       const response = await fetch(`${API_URL}/phases/start`, {
@@ -296,7 +296,7 @@ class TrackingService {
    * caller can re-buffer. Pass keepalive=true when flushing during page unload.
    */
   async saveGazeBatch(
-    samples: { videoId: string; x: number; y: number; timestamp: number }[],
+    samples: { videoId: string; x: number; y: number; timestamp: number; clientTime: number }[],
     keepalive = false
   ): Promise<void> {
     if (!this.token || samples.length === 0) return;

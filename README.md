@@ -2,6 +2,22 @@
 
 A Next.js application for conducting video-watching behavior research with two experimental conditions.
 
+## Deploying changes to the VM
+
+See **[DEPLOY.md](DEPLOY.md)** for the full pull → migrate → build → restart procedure,
+verification steps, and rollback. Short version:
+
+```bash
+cd ~/video-switching && git pull
+npm install && (cd server && npm install)
+(cd server && npx prisma migrate deploy && npx prisma generate)
+npm run build          # required for any frontend change
+pm2 restart all
+```
+
+`npm run build` and `prisma migrate deploy` are the two steps that are easy to skip and cause
+silent failures — see [DEPLOY.md](DEPLOY.md#why-migrations-matter).
+
 ## Start Deployed Website
 
 To Access Your Website

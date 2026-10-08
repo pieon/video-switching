@@ -31,7 +31,7 @@ model User {
 // Start/end of each stage of the study: the EEG baseline video, training, and
 // the experiment block. A row with endedAt = null means the participant left
 // that stage without finishing it.
-// Valid values for phase: "eeg_baseline" | "training" | "experiment"
+// Valid values for phase: "eeg_baseline" | "training" | "experiment" | "recording"
 model PhaseLog {
   id            String   @id @default(uuid())
   userId        String
@@ -50,7 +50,11 @@ model GazeSample {
   videoId   String   @default("") // video being watched, "" if none
   x         Float
   y         Float
-  timestamp Float    // WebGazer clock timestamp (ms)
+  timestamp Float    // WebGazer clock: ms since begin(), resets per page load
+  // Wall clock on the participant's machine when the sample was captured. The
+  // WebGazer clock has no epoch, so this is what aligns gaze to video events
+  // and to the screen recording.
+  clientTime DateTime?
   createdAt DateTime @default(now())
 
   @@map("gaze_samples")

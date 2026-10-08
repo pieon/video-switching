@@ -31,7 +31,7 @@ export default function CalibratePage() {
     setSelectedCameraId(localStorage.getItem(CAMERA_STORAGE_KEY) ?? '');
   }, []);
 
-  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setMouseTraining } = useWebGazerContext();
+  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setVideoPreview } = useWebGazerContext();
 
   useEffect(() => {
     if (selectedCameraId === null) return;
@@ -45,16 +45,8 @@ export default function CalibratePage() {
     };
   }, [isReady, resume, pause]);
 
-  useEffect(() => {
-    if (!isReady) return;
-    setMouseTraining(false);
-    return () => {
-      setMouseTraining(true);
-    };
-  }, [isReady, setMouseTraining]);
-
   const [currentPointIndex, setCurrentPointIndex] = useState<number | null>(null);
-  const [clicksRemaining, setClicksRemaining] = useState(0);
+  const [isSampling, setIsSampling] = useState(false);
   const [completedPoints, setCompletedPoints] = useState<number[]>([]);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -81,9 +73,13 @@ export default function CalibratePage() {
     dingRef.current = new Audio('/Images/audio/ding.wav');
   }, []);
 
-  // Clicks required per point. Each click records one sample; 3 × 9 = 27 total,
-  // well within WebGazer's fixed 50-sample click buffer (dataWindow=50).
-  const CLICKS_PER_POINT = 3;
+  // One click per point starts sampling: wait for the eyes to settle, then record
+  // SAMPLES_PER_POINT frames spaced apart so each is a distinct video frame.
+  // 5 × 9 = 45 must stay ≤ WebGazer's fixed 50-sample click buffer (dataWindow=50),
+  // or the earliest points get silently evicted.
+  const SETTLE_MS = 800;
+  const SAMPLES_PER_POINT = 5;
+  const SAMPLE_INTERVAL_MS = 100;
 
   // ROI validation config (jsPsych webgazer-validate style).
   const ROI_RADIUS = 200;           // px; a sample is "on target" within this radius
@@ -147,7 +143,17 @@ export default function CalibratePage() {
     }
   }, [user, isLoading, router]);
 
+  // Camera preview + face box while the participant positions themselves.
+  const isPositioning = isReady && !isCalibrating && !isComplete && !showAccuracyConfirm && !isMeasuringAccuracy;
+  useEffect(() => {
+    setVideoPreview(isPositioning);
+    return () => setVideoPreview(false);
+  }, [isPositioning, setVideoPreview]);
+
   const startCalibration = () => {
+    // Always start from an empty model.
+    clearCalibrationData();
+
     const indices = Array.from({ length: CALIBRATION_POINTS.length }, (_, i) => i);
     const shuffled = indices.sort(() => Math.random() - 0.5);
 
@@ -155,7 +161,7 @@ export default function CalibratePage() {
     setCurrentOrderIndex(0);
     setIsCalibrating(true);
     setCurrentPointIndex(shuffled[0]);
-    setClicksRemaining(CLICKS_PER_POINT);
+    setIsSampling(false);
     setCompletedPoints([]);
     setAccuracyPercentage(null);
   };
@@ -170,28 +176,31 @@ export default function CalibratePage() {
     if (nextOrderIndex < randomizedOrder.length) {
       setCurrentOrderIndex(nextOrderIndex);
       setCurrentPointIndex(randomizedOrder[nextOrderIndex]);
-      setClicksRemaining(CLICKS_PER_POINT);
     } else {
       setIsCalibrating(false);
       setShowAccuracyConfirm(true);
     }
   };
 
-  // Click mode: each click on the active point records the exact target center
-  // once; after CLICKS_PER_POINT clicks the point is done and we advance.
-  const handlePointClick = (index: number) => {
-    if (!isCalibrating || currentPointIndex !== index) return;
+  // Click the active point once; while the participant keeps looking at it we
+  // record SAMPLES_PER_POINT samples of the exact target center, then advance.
+  const handlePointClick = async (index: number) => {
+    if (!isCalibrating || currentPointIndex !== index || isSampling) return;
+    setIsSampling(true);
 
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const point = CALIBRATION_POINTS[index];
     const x = (point.x / 100) * window.innerWidth;
     const y = (point.y / 100) * window.innerHeight;
-    calibratePoint(x, y, 'click');
 
-    if (clicksRemaining - 1 > 0) {
-      setClicksRemaining(clicksRemaining - 1);
-    } else {
-      advanceToNextPoint();
+    await sleep(SETTLE_MS);
+    for (let i = 0; i < SAMPLES_PER_POINT; i++) {
+      calibratePoint(x, y, 'click');
+      await sleep(SAMPLE_INTERVAL_MS);
     }
+
+    setIsSampling(false);
+    advanceToNextPoint();
   };
 
   // Chime each time a new calibration point appears.
@@ -300,7 +309,6 @@ export default function CalibratePage() {
     setIsComplete(false);
     setAccuracyPercentage(null);
     setValidationResults([]);
-    clearCalibrationData();
     startCalibration();
   };
 
@@ -375,7 +383,10 @@ export default function CalibratePage() {
         <Card style={{ marginTop: 24, textAlign: 'center' }}>
           <h2 style={{ marginTop: 0 }}>Ready to Calibrate</h2>
           <p style={{ fontSize: 16, marginBottom: 16, color: '#666' }}>
-            You'll see 9 points on the screen, one at a time. Look directly at each point and <strong>click it {CLICKS_PER_POINT} times</strong> while keeping your head still.
+            First, center your face in the camera preview (bottom-right) until the box around it turns <strong>green</strong>.
+          </p>
+          <p style={{ fontSize: 16, marginBottom: 16, color: '#666' }}>
+            You'll then see 9 points on the screen, one at a time. Look directly at each point, <strong>click it once, and keep looking at it until it moves</strong>, keeping your head still.
           </p>
           <div style={{
             background: '#fff3cd',
@@ -389,7 +400,7 @@ export default function CalibratePage() {
             <strong>Tips for best accuracy:</strong>
             <ul style={{ textAlign: 'left', marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
               <li>Keep your head still during calibration</li>
-              <li>Look directly at each point while you click it, then it advances to the next</li>
+              <li>Keep looking at each point after you click it, until it moves to the next spot</li>
               <li>Sit at a comfortable distance from the screen (~40cm)</li>
               <li>Ensure good lighting on your face</li>
             </ul>
@@ -438,10 +449,11 @@ export default function CalibratePage() {
                   border: 'none',
                   background: 'transparent',
                   padding: 0,
-                  cursor: isActive ? 'pointer' : 'default',
+                  cursor: isActive && !isSampling ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
                   opacity: isCompleted ? 0.0 : isActive ? 1.0 : 0.0,
-                  animation: isActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                  // Hold still while sampling so the target doesn't move under the gaze.
+                  animation: isActive && !isSampling ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label={`Calibration point ${point.id}`}
               >
@@ -577,6 +589,13 @@ export default function CalibratePage() {
       `}</style>
 
       <style jsx global>{`
+        body #webgazerVideoContainer {
+          top: auto !important;
+          left: auto !important;
+          bottom: 24px !important;
+          right: 24px !important;
+          z-index: 1001 !important;
+        }
         body #webgazerGazeDot {
           background: rgba(33, 150, 243, 0.45) !important;
           width: 10px !important;

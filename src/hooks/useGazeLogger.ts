@@ -12,7 +12,10 @@ interface GazeSample {
   videoId: string;
   x: number;
   y: number;
+  /** WebGazer clock: ms since begin(). No epoch, so not comparable across loads. */
   timestamp: number;
+  /** Wall clock (epoch ms) at capture — what aligns gaze to video and events. */
+  clientTime: number;
 }
 
 interface UseGazeLoggerOptions {
@@ -33,6 +36,7 @@ export function useGazeLogger({ participantId }: UseGazeLoggerOptions = {}) {
         x: Math.round(data.x),
         y: Math.round(data.y),
         timestamp: data.timestamp,
+        clientTime: Date.now(),
       });
     }
   }, []);

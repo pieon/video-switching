@@ -25,6 +25,8 @@ async function trackGazeBatch(req, res) {
         x: s.x,
         y: s.y,
         timestamp: s.timestamp,
+        // Epoch ms from the browser; older clients may not send it.
+        clientTime: s.clientTime ? new Date(s.clientTime) : null,
       })),
     });
 
@@ -71,11 +73,22 @@ async function exportGazeAsCSV(req, res) {
       x: s.x,
       y: s.y,
       timestamp: s.timestamp,
+      client_time: toEastern(s.clientTime),
+      client_time_epoch_ms: s.clientTime ? s.clientTime.getTime() : null,
       createdAt: toEastern(s.createdAt),
     }));
 
     const parser = new Parser({
-      fields: ['participantId', 'videoId', 'x', 'y', 'timestamp', 'createdAt'],
+      fields: [
+        'participantId',
+        'videoId',
+        'x',
+        'y',
+        'timestamp',
+        'client_time',
+        'client_time_epoch_ms',
+        'createdAt',
+      ],
     });
     const csv = parser.parse(rows);
 

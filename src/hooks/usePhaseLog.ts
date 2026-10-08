@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { trackingService } from '@/services/trackingService';
 
-type Phase = 'eeg_baseline' | 'training' | 'experiment';
+type Phase = 'eeg_baseline' | 'training' | 'experiment' | 'recording';
 
 export function usePhaseLog(phase: Phase) {
   const idRef = useRef<string | null>(null);

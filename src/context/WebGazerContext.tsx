@@ -18,8 +18,8 @@ interface WebGazerContextType {
   clearCalibrationData: () => void;
   /** Feed an explicit calibration sample (known target) to the regression model. */
   calibratePoint: (x: number, y: number, eventType?: 'click' | 'move') => void;
-  /** Toggle WebGazer's implicit click/mousemove training listeners. */
-  setMouseTraining: (enabled: boolean) => void;
+  /** Show/hide the camera preview with the face-position feedback box. */
+  setVideoPreview: (show: boolean) => void;
 }
 
 const WebGazerContext = createContext<WebGazerContextType | undefined>(undefined);
@@ -105,9 +105,16 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
         prewarmStream.getTracks().forEach((t) => t.stop());
       }
 
+      // Don't load/persist the model in IndexedDB — otherwise a previous
+      // participant's calibration samples are loaded into this one's model.
+      webgazer.saveDataAcrossSessions(false);
+
       await webgazer.begin();
       // Pause immediately; pages resume() when they need tracking.
       webgazer.pause();
+      // Train only on explicit calibration samples. Implicit click/mousemove
+      // training would keep reshaping the model during the experiment.
+      webgazer.removeMouseEventListeners();
 
       // Wait for the visible video feed to have real dimensions.
       await new Promise<void>((resolve, reject) => {
@@ -186,12 +193,11 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const setMouseTraining = useCallback((enabled: boolean) => {
-    if (enabled) {
-      webgazerRef.current?.addMouseEventListeners();
-    } else {
-      webgazerRef.current?.removeMouseEventListeners();
-    }
+  const setVideoPreview = useCallback((show: boolean) => {
+    const webgazer = webgazerRef.current;
+    if (!webgazer) return;
+    webgazer.showVideo(show);
+    webgazer.showFaceFeedbackBox(show);
   }, []);
 
   const end = useCallback(() => {
@@ -234,7 +240,7 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
         clearGazeData,
         clearCalibrationData,
         calibratePoint,
-        setMouseTraining,
+        setVideoPreview,
       }}
     >
       {children}

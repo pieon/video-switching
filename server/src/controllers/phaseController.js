@@ -1,6 +1,6 @@
 const { prisma } = require('../config/database');
 
-const VALID_PHASES = ['eeg_baseline', 'training', 'experiment'];
+const VALID_PHASES = ['eeg_baseline', 'training', 'experiment', 'recording'];
 
 /**
  * Open a phase log. The row is written immediately so an abandoned phase still
