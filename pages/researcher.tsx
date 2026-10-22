@@ -131,7 +131,7 @@ export default function ResearcherPage() {
   };
 
   const handleExportCSV = async (
-    type: 'events' | 'sessions' | 'participants' | 'phases',
+    type: 'events' | 'sessions' | 'participants' | 'phases' | 'display',
     participantId?: string
   ) => {
     try {
@@ -157,14 +157,15 @@ export default function ResearcherPage() {
     }
   };
 
-  // All three CSVs for one participant, in sequence so the browser does not
-  // treat them as a burst of unrequested downloads.
+  // Every CSV for one participant, in sequence so the browser does not treat
+  // them as a burst of unrequested downloads.
   const handleExportParticipant = async (participantId: string) => {
     setExportingId(participantId);
     try {
       await handleExportCSV('events', participantId);
       await handleExportCSV('sessions', participantId);
       await handleExportGaze(participantId);
+      await handleExportCSV('display', participantId);
     } finally {
       setExportingId(null);
     }
@@ -348,11 +349,18 @@ export default function ResearcherPage() {
           Export Participants
         </Button>
         <Button
-          onClick={handleExportGaze}
+          onClick={() => handleExportGaze()}
           size="medium"
           style={{ background: '#6a1b9a', color: 'white' }}
         >
           Export Gaze Samples
+        </Button>
+        <Button
+          onClick={() => handleExportCSV('display')}
+          size="medium"
+          style={{ background: '#455a64', color: 'white' }}
+        >
+          Export Display
         </Button>
       </div>
 
@@ -502,7 +510,7 @@ export default function ResearcherPage() {
                       <button
                         onClick={() => handleExportParticipant(p.participantId)}
                         disabled={exportingId === p.participantId}
-                        title="Download events, sessions and gaze CSVs for this participant"
+                        title="Download events, sessions, gaze and display CSVs for this participant"
                         style={{
                           padding: '4px 10px',
                           fontSize: 12,
@@ -514,12 +522,13 @@ export default function ResearcherPage() {
                           cursor: exportingId === p.participantId ? 'wait' : 'pointer',
                         }}
                       >
-                        {exportingId === p.participantId ? 'Downloading...' : 'All 3 CSVs'}
+                        {exportingId === p.participantId ? 'Downloading...' : 'All CSVs'}
                       </button>
                       {([
                         ['Events', () => handleExportCSV('events', p.participantId)],
                         ['Sessions', () => handleExportCSV('sessions', p.participantId)],
                         ['Gaze', () => handleExportGaze(p.participantId)],
+                        ['Display', () => handleExportCSV('display', p.participantId)],
                       ] as const).map(([label, onClick]) => (
                         <button
                           key={label}

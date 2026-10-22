@@ -6,6 +6,7 @@ import { VideoPlayer, VideoGrid } from '@/components/video';
 import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
+import { useWebGazerContext } from '@/context/WebGazerContext';
 import { usePhaseLog } from '@/hooks/usePhaseLog';
 import {
   TRAINING_VIDEOS_PHASE_2,
@@ -62,6 +63,7 @@ function TrainingShort() {
   }, [phase, endPhase]);
   const [completed, setCompleted] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
+  useTrainingGaze(current);
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
 
   // 1-min videos of the participant's assigned experiment set.
@@ -169,6 +171,7 @@ function TrainingFull() {
   const [completed2, setCompleted2] = useState<string[]>([]);
   const [completed3, setCompleted3] = useState<string[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
+  useTrainingGaze(current);
   const [playbackPositions, setPlaybackPositions] = useState<Record<string, number>>({});
 
   const phaseVideos =
@@ -334,6 +337,19 @@ function ModeBlurb({ isSwitching }: { isSwitching: boolean }) {
       </ul>
     </div>
   );
+}
+
+// Gaze itself is logged continuously by the WebGazer context (tagged
+// "training" on this page); this just tells it which training video is on
+// screen so each sample carries the right videoId.
+function useTrainingGaze(currentVideoId: string | null) {
+  const { setGazeVideoId } = useWebGazerContext();
+
+  useEffect(() => {
+    setGazeVideoId(currentVideoId);
+  }, [currentVideoId, setGazeVideoId]);
+
+  useEffect(() => () => setGazeVideoId(null), [setGazeVideoId]);
 }
 
 function TrainingCompleteCard({ onContinue, message }: { onContinue: () => void; message?: string }) {

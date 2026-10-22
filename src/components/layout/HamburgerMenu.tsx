@@ -2,9 +2,11 @@
 import { useState, useRef, useEffect, CSSProperties } from 'react';
 import { Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
 
 export function HamburgerMenu() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const confirmLogout = useConfirmedLogout();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -70,7 +72,7 @@ export function HamburgerMenu() {
               Participant: {user.participantId}
             </div>
           )}
-          <Button onClick={logout} variant="danger" size="small">
+          <Button onClick={confirmLogout} variant="danger" size="small">
             Logout
           </Button>
         </div>

@@ -1,6 +1,8 @@
 // Hook for screen and webcam recording
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { appendChunk, getPendingChunks, clearChunks } from '@/utils/recordingStore';
+import { trackingService } from '@/services/trackingService';
+import { readDisplay } from '@/utils/displayInfo';
 
 interface UseMediaRecorderOptions {
   participantId?: string;
@@ -105,6 +107,16 @@ export function useMediaRecorder({
         audio: false,
       });
       screenStreamRef.current = screenStream;
+
+      // The recording's frame size is set by the captured surface, not the
+      // browser viewport. Log both so gaze (viewport CSS px) can be mapped onto
+      // the .webm frames afterwards.
+      const captured = screenStream.getVideoTracks()[0]?.getSettings();
+      trackingService.logDisplay('recording', {
+        ...readDisplay(),
+        recordedWidth: captured?.width,
+        recordedHeight: captured?.height,
+      });
 
       // Request webcam (may already be in use by WebGazer, so we get a new stream)
       const deviceId = overrideDeviceId ?? cameraDeviceId;

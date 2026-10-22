@@ -24,6 +24,7 @@ model User {
   sessions      VideoSession[]
   gazeSamples   GazeSample[]
   phaseLogs     PhaseLog[]
+  displaySnapshots DisplaySnapshot[]
 
   @@map("users")
 }
@@ -43,11 +44,40 @@ model PhaseLog {
   @@map("phase_logs")
 }
 
+// Browser display geometry at key moments. Gaze coordinates are in viewport CSS
+// pixels, so these are what tell you whether the calibration still holds and
+// how to map gaze onto the screen recording's frames.
+// Valid values for stage: "calibration" | "experiment" | "recording" | "change"
+model DisplaySnapshot {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage            String
+  capturedAt       DateTime  @default(now())
+  clientTime       DateTime?
+  innerWidth       Int
+  innerHeight      Int
+  devicePixelRatio Float
+  screenWidth      Int
+  screenHeight     Int
+  screenX          Int
+  screenY          Int
+  outerWidth       Int
+  outerHeight      Int
+  recordedWidth    Int?      // screen-capture frame size; "recording" rows only
+  recordedHeight   Int?
+
+  @@map("display_snapshots")
+}
+
 model GazeSample {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   videoId   String   @default("") // video being watched, "" if none
+  // Which stage produced the sample: "calibration" | "training" | "experiment".
+  // Rows logged before this column existed all came from the player.
+  phase     String   @default("experiment")
   x         Float
   y         Float
   timestamp Float    // WebGazer clock: ms since begin(), resets per page load

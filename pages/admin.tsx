@@ -1,25 +1,42 @@
 // Admin/Settings page - Next.js
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
 import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { Mode, VideoSet } from '@/types';
+import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
+import { readDisplay, getCalibrationDisplay, describeDisplayChange } from '@/utils/displayInfo';
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, setMode, setVideoSet, isLoading, logout } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  const { user, setMode, setVideoSet, isLoading } = useAuth();
+  const confirmLogout = useConfirmedLogout();
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/');
     }
   }, [user, isLoading, router]);
+
+  // Compare the current display with the one calibration was trained on.
+  // null = matches; [] = no calibration in this tab; otherwise what changed.
+  // Re-checked on resize so the warning clears once the researcher fixes it.
+  const [displayChanges, setDisplayChanges] = useState<string[] | null>(null);
+  useEffect(() => {
+    const check = () => {
+      const calibration = getCalibrationDisplay();
+      if (!calibration) {
+        setDisplayChanges([]);
+        return;
+      }
+      const changes = describeDisplayChange(calibration, readDisplay());
+      setDisplayChanges(changes.length ? changes : null);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   if (isLoading || !user) {
     return (
@@ -48,16 +65,45 @@ export default function AdminPage() {
         <div style={{ fontSize: 14, color: '#666' }}>
           Participant: {user.participantId}
         </div>
-        <Button variant="danger" size="small" onClick={handleLogout}>Logout</Button>
+        <Button variant="danger" size="small" onClick={confirmLogout}>Logout</Button>
       </div>
 
       <h1 style={{ textAlign: 'center', marginBottom: 32 }}>
         Session Setup
       </h1>
 
-      <Card>
-        <h2 style={{ marginTop: 0 }}>Your Assignment</h2>
+      {displayChanges && (
+        <Card style={{ marginBottom: 16, border: '2px solid #ff9800', background: '#fff8e1' }}>
+          <h3 style={{ marginTop: 0, color: '#e65100' }}>
+            {displayChanges.length === 0
+              ? '⚠ No calibration in this tab'
+              : '⚠ Display changed since calibration'}
+          </h3>
+          {displayChanges.length === 0 ? (
+            <p style={{ fontSize: 14, color: '#5d4037' }}>
+              Eye tracking has not been calibrated since this tab was opened, so gaze
+              coordinates will not be reliable.
+            </p>
+          ) : (
+            <>
+              <p style={{ fontSize: 14, color: '#5d4037', marginBottom: 8 }}>
+                Gaze coordinates may be offset. Restore the original window (e.g. press F11,
+                reset browser zoom) or recalibrate:
+              </p>
+              <ul style={{ fontSize: 13, color: '#5d4037', marginTop: 0 }}>
+                {displayChanges.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <Button onClick={() => router.push('/calibrate')} size="small">
+            Recalibrate
+          </Button>
+        </Card>
+      )}
 
+      <Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
           <div style={{
             display: 'flex',
@@ -67,14 +113,10 @@ export default function AdminPage() {
             borderRadius: 12,
             border: '2px solid #007AFF',
             background: '#E3F2FF',
+            marginTop: 15,
           }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>Mode</div>
-              <div style={{ fontSize: 13, color: '#555', marginTop: 2 }}>
-                {currentMode === 'switching'
-                  ? 'Full controls — switch between videos freely'
-                  : 'Must watch each video completely, no fast-forward'}
-              </div>
+              <div style={{ fontWeight: 600, fontSize: 18 }}>Mode</div>
             </div>
             <span style={{ fontWeight: 700, fontSize: 18, color: '#007AFF' }}>
               {currentMode === 'switching' ? 'Switching' : 'Non-Switching'}
@@ -91,12 +133,7 @@ export default function AdminPage() {
             background: currentSet === 'A' ? '#E8F5E9' : '#FCE4EC',
           }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>Video Set</div>
-              <div style={{ fontSize: 13, color: '#555', marginTop: 2 }}>
-                {currentSet === 'A'
-                  ? 'Cafe Chaos · One of These Goats · Buried Treasure · Building Bridges'
-                  : 'Zadies Shell Shuffle · Pokey Plant · Lemonade Problem · Design Time'}
-              </div>
+              <div style={{ fontWeight: 600, fontSize: 18 }}>Video Set</div>
             </div>
             <span style={{
               fontWeight: 700,

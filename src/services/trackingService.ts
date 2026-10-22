@@ -1,4 +1,5 @@
 // Tracking service for video event logging
+import type { DisplayInfo } from '@/utils/displayInfo';
 
 // Get API URL from environment (Next.js inlines NEXT_PUBLIC_* at build time)
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -183,12 +184,39 @@ class TrackingService {
     }
   }
 
-  /** Close a phase log. keepalive lets it survive page unload. */
-  async endPhase(id: string, keepalive = false): Promise<void> {
+  /**
+   * Record the browser's display geometry. Never throws — display logging must
+   * not block the study.
+   */
+  async logDisplay(
+    stage: 'calibration' | 'experiment' | 'recording' | 'change',
+    info: DisplayInfo & { recordedWidth?: number; recordedHeight?: number }
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${API_URL}/display`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.token}`,
+        },
+        body: JSON.stringify({ stage, clientTime: Date.now(), ...info }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      console.error('[trackingService] logDisplay failed', err);
+    }
+  }
+
+  /**
+   * Close a phase log. keepalive lets it survive page unload. Pass the token the
+   * phase was opened with: closing often happens during logout, after the
+   * current token has already been cleared.
+   */
+  async endPhase(id: string, keepalive = false, token = this.token): Promise<void> {
     try {
       await fetch(`${API_URL}/phases/${id}/end`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${this.token}` },
+        headers: { 'Authorization': `Bearer ${token}` },
         keepalive,
       });
     } catch (err) {
@@ -296,7 +324,7 @@ class TrackingService {
    * caller can re-buffer. Pass keepalive=true when flushing during page unload.
    */
   async saveGazeBatch(
-    samples: { videoId: string; x: number; y: number; timestamp: number; clientTime: number }[],
+    samples: { videoId: string; phase: string; x: number; y: number; timestamp: number; clientTime: number }[],
     keepalive = false
   ): Promise<void> {
     if (!this.token || samples.length === 0) return;

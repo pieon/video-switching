@@ -1,22 +1,69 @@
 // Video player page - Next.js
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, HamburgerMenu } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useSession } from '@/hooks/useSession';
-import { GazeData } from '@/hooks/useWebGazer';
 import { useWebGazerContext } from '@/context/WebGazerContext';
-import { useGazeLogger } from '@/hooks/useGazeLogger';
 import { usePhaseLog } from '@/hooks/usePhaseLog';
+import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
 import { trackingService } from '@/services/trackingService';
+import { readDisplay, getCalibrationDisplay, describeDisplayChange } from '@/utils/displayInfo';
 import { MOCK_VIDEOS } from '@/utils/constants';
 
 export default function PlayerPage() {
   const router = useRouter();
-  const { user, mode, isLoading, logout } = useAuth();
+  const { user, mode, isLoading } = useAuth();
+  const confirmLogout = useConfirmedLogout();
   useExperimentTheme();
+
+  // Block the right-click menu while on the player — the video's native menu
+  // offers loop, speed, picture-in-picture and download, any of which would
+  // bypass the experiment's playback rules.
+  useEffect(() => {
+    const block = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener('contextmenu', block);
+    return () => document.removeEventListener('contextmenu', block);
+  }, []);
+
+  // Display geometry: log it when the experiment starts and on every resize
+  // (zoom, leaving fullscreen, display change), and flag a mismatch with the
+  // calibration so the researcher can see gaze coordinates may be offset.
+  const [displayWarning, setDisplayWarning] = useState<string | null>(null);
+  const loggedExperimentDisplayRef = useRef(false);
+  useEffect(() => {
+    if (!user) return;
+    const evaluate = () => {
+      const current = readDisplay();
+      const calibration = getCalibrationDisplay();
+      if (!calibration) {
+        setDisplayWarning('Not calibrated in this tab');
+      } else {
+        const changes = describeDisplayChange(calibration, current);
+        setDisplayWarning(changes.length ? 'Display changed since calibration' : null);
+      }
+      return current;
+    };
+
+    if (!loggedExperimentDisplayRef.current) {
+      loggedExperimentDisplayRef.current = true;
+      trackingService.logDisplay('experiment', evaluate());
+    }
+
+    let timer: number | undefined;
+    const onResize = () => {
+      window.clearTimeout(timer);
+      // a resize fires many events; log once it settles
+      timer = window.setTimeout(() => trackingService.logDisplay('change', evaluate()), 500);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.clearTimeout(timer);
+    };
+  }, [user]);
   const {
     completed,
     current,
@@ -34,26 +81,14 @@ export default function PlayerPage() {
     ? localStorage.getItem('selected_camera_device_id') || undefined
     : undefined;
 
-  // Log every raw gaze sample (x, y) per participant.
-  const { logSample, saveAndClearSamples } = useGazeLogger({
-    participantId: user?.participantId,
-  });
-
-  // Latest video being watched, read inside the (stable) gaze handler so each
-  // sample is tagged with the current videoId ('' when nothing is playing).
-  const currentVideoIdRef = useRef<string | null>(null);
-
-  // WebGazer eye tracking integration (single persistent instance via context)
-  const handleGazeUpdate = useCallback((data: GazeData) => {
-    logSample(data, currentVideoIdRef.current ?? '');
-  }, [logSample]);
-
   const {
     start: startWebGazer,
     resume: resumeWebGazer,
     pause: pauseWebGazer,
-    setGazeListener,
     isReady: webgazerReady,
+    startGazeLogging,
+    flushGaze,
+    setGazeVideoId,
   } = useWebGazerContext();
 
   // Ensure WebGazer is initialized (idempotent — usually already started during
@@ -65,24 +100,15 @@ export default function PlayerPage() {
   // Route gaze samples to the logger and resume tracking while on this page;
   // pause and detach on unmount (e.g. navigating back to /admin).
   useEffect(() => {
-    setGazeListener(handleGazeUpdate);
+    // Gaze is logged by the WebGazer context, tagged "experiment" here. Normally
+    // already running since calibration; this also covers a skipped
+    // calibration, so experiment gaze is never missed.
+    startGazeLogging();
     if (webgazerReady) resumeWebGazer();
     return () => {
-      setGazeListener(null);
-      pauseWebGazer();
+      pauseWebGazer(); // no-op while logging, which continues until logout
     };
-  }, [webgazerReady, handleGazeUpdate, setGazeListener, resumeWebGazer, pauseWebGazer]);
-
-  // Flush any buffered gaze samples when leaving the page (navigation or tab
-  // close), so data isn't lost if a video wasn't finished.
-  useEffect(() => {
-    const onBeforeUnload = () => saveAndClearSamples(true); // keepalive during unload
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      saveAndClearSamples();
-    };
-  }, [saveAndClearSamples]);
+  }, [webgazerReady, startGazeLogging, resumeWebGazer, pauseWebGazer]);
 
   const { videoSet } = useAuth();
   const videos = useMemo(() => {
@@ -111,8 +137,11 @@ export default function PlayerPage() {
     }
   }, [user, isLoading, router]);
 
-  // Keep the current videoId available to the (stable) gaze handler.
-  currentVideoIdRef.current = current;
+  // Tag gaze samples with the video on screen ('' when nothing is playing).
+  useEffect(() => {
+    setGazeVideoId(current);
+  }, [current, setGazeVideoId]);
+  useEffect(() => () => setGazeVideoId(null), [setGazeVideoId]);
 
   // Recording is started on the EEG page and stopped on leaving this page by
   // RecordingProvider, so the player no longer manages the recorder directly.
@@ -165,7 +194,7 @@ export default function PlayerPage() {
     setCurrent(null);
     setCurrentSessionId(null);
 
-    saveAndClearSamples();
+    flushGaze();
   };
 
   const handlePlay = (position: number) => {
@@ -212,10 +241,7 @@ export default function PlayerPage() {
             The experiment is complete. Thank you for participating!
           </p>
           <button
-            onClick={() => {
-              logout();
-              router.push('/');
-            }}
+            onClick={confirmLogout}
             style={{
               padding: '14px 32px',
               fontSize: 18,
@@ -237,6 +263,24 @@ export default function PlayerPage() {
   return (
     <PageLayout maxWidth={1400}>
       <HamburgerMenu />
+
+      {/* Deliberately muted: on the mirrored setup the child sees this too. */}
+      {displayWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 8,
+            left: 8,
+            fontSize: 11,
+            color: '#ff9800',
+            opacity: 0.6,
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
+          ⚠ {displayWarning}
+        </div>
+      )}
 
       <main
         style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 32 }}

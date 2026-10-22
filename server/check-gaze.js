@@ -16,7 +16,14 @@ const ago = (d) => {
     await p.$queryRawUnsafe("SELECT name FROM sqlite_master WHERE type='table'")
   ).map((t) => t.name);
 
-  const missing = ['users', 'video_sessions', 'video_events', 'gaze_samples'].filter(
+  const missing = [
+    'users',
+    'video_sessions',
+    'video_events',
+    'gaze_samples',
+    'phase_logs',
+    'display_snapshots',
+  ].filter(
     (t) => !tables.includes(t)
   );
   if (missing.length) {
@@ -25,16 +32,20 @@ const ago = (d) => {
     return;
   }
 
-  const [users, sessions, events, gaze] = await Promise.all([
+  const [users, sessions, events, gaze, phases, displays] = await Promise.all([
     p.user.count(),
     p.videoSession.count(),
     p.videoEvent.count(),
     p.gazeSample.count(),
+    p.phaseLog.count(),
+    p.displaySnapshot.count(),
   ]);
-  const [lastSession, lastEvent, lastGaze] = await Promise.all([
+  const [lastSession, lastEvent, lastGaze, lastPhase, lastDisplay] = await Promise.all([
     p.videoSession.findFirst({ orderBy: { startedAt: 'desc' } }),
     p.videoEvent.findFirst({ orderBy: { timestamp: 'desc' } }),
     p.gazeSample.findFirst({ orderBy: { createdAt: 'desc' } }),
+    p.phaseLog.findFirst({ orderBy: { startedAt: 'desc' } }),
+    p.displaySnapshot.findFirst({ orderBy: { capturedAt: 'desc' } }),
   ]);
 
   console.log('\n=== Totals ===');
@@ -43,6 +54,8 @@ const ago = (d) => {
     { stream: 'sessions', rows: sessions, last: ago(lastSession?.startedAt) },
     { stream: 'events', rows: events, last: ago(lastEvent?.timestamp) },
     { stream: 'gaze samples', rows: gaze, last: ago(lastGaze?.createdAt) },
+    { stream: 'phase logs', rows: phases, last: ago(lastPhase?.startedAt) },
+    { stream: 'display snapshots', rows: displays, last: ago(lastDisplay?.capturedAt) },
   ]);
 
   console.log('=== Per participant ===');

@@ -10,6 +10,7 @@ const eventRoutes = require('./routes/eventRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const gazeRoutes = require('./routes/gazeRoutes');
 const phaseRoutes = require('./routes/phaseRoutes');
+const displayRoutes = require('./routes/displayRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -58,6 +59,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/gaze', gazeRoutes);
 app.use('/api/phases', phaseRoutes);
+app.use('/api/display', displayRoutes);
 
 // 404 handler
 app.use((req, res) => {

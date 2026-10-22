@@ -2,6 +2,8 @@ const { prisma } = require('../config/database');
 const { Parser } = require('json2csv');
 const { toEastern } = require('../utils/datetime');
 
+const VALID_PHASES = ['calibration', 'training', 'experiment'];
+
 /**
  * Store a batch of raw gaze samples for the authenticated user.
  * @route POST /api/gaze/batch
@@ -18,10 +20,20 @@ async function trackGazeBatch(req, res) {
       });
     }
 
+    // Older clients send no phase; everything they logged came from the player.
+    const bad = samples.find((s) => s.phase && !VALID_PHASES.includes(s.phase));
+    if (bad) {
+      return res.status(400).json({
+        success: false,
+        error: `phase must be one of: ${VALID_PHASES.join(', ')}`,
+      });
+    }
+
     const created = await prisma.gazeSample.createMany({
       data: samples.map((s) => ({
         userId,
         videoId: s.videoId || '',
+        phase: s.phase || 'experiment',
         x: s.x,
         y: s.y,
         timestamp: s.timestamp,
@@ -69,6 +81,7 @@ async function exportGazeAsCSV(req, res) {
 
     const rows = samples.map((s) => ({
       participantId: s.user.participantId,
+      phase: s.phase,
       videoId: s.videoId,
       x: s.x,
       y: s.y,
@@ -81,6 +94,7 @@ async function exportGazeAsCSV(req, res) {
     const parser = new Parser({
       fields: [
         'participantId',
+        'phase',
         'videoId',
         'x',
         'y',

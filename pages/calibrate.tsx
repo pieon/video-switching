@@ -6,6 +6,8 @@ import { Button, Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { GazeData } from '@/hooks/useWebGazer';
 import { useWebGazerContext } from '@/context/WebGazerContext';
+import { trackingService } from '@/services/trackingService';
+import { readDisplay, saveCalibrationDisplay } from '@/utils/displayInfo';
 
 const CALIBRATION_POINTS = [
   { id: 1, x: 10, y: 10 }, // Top-left
@@ -31,7 +33,7 @@ export default function CalibratePage() {
     setSelectedCameraId(localStorage.getItem(CAMERA_STORAGE_KEY) ?? '');
   }, []);
 
-  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setVideoPreview } = useWebGazerContext();
+  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setVideoPreview, startGazeLogging } = useWebGazerContext();
 
   useEffect(() => {
     if (selectedCameraId === null) return;
@@ -153,6 +155,15 @@ export default function CalibratePage() {
   const startCalibration = () => {
     // Always start from an empty model.
     clearCalibrationData();
+
+    // The model is trained in this viewport's pixels; remember the geometry so
+    // later pages can tell if it changed (and log it for analysis).
+    const display = readDisplay();
+    saveCalibrationDisplay(display);
+    trackingService.logDisplay('calibration', display);
+
+    // Gaze is logged from here on, continuously, until logout.
+    startGazeLogging();
 
     const indices = Array.from({ length: CALIBRATION_POINTS.length }, (_, i) => i);
     const shuffled = indices.sort(() => Math.random() - 0.5);
@@ -379,7 +390,7 @@ export default function CalibratePage() {
         </Card>
       )}
 
-      {isReady && !isCalibrating && !isComplete && (
+      {isPositioning && (
         <Card style={{ marginTop: 24, textAlign: 'center' }}>
           <h2 style={{ marginTop: 0 }}>Ready to Calibrate</h2>
           <p style={{ fontSize: 16, marginBottom: 16, color: '#666' }}>

@@ -217,10 +217,73 @@ async function exportDataAsCSV(req, res) {
       res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}phases_export.csv`);
       res.send(csv);
 
+    } else if (type === 'display') {
+      // Display geometry snapshots. matches_calibration compares each row to the
+      // participant's most recent calibration snapshot taken before it — a "no"
+      // means the viewport changed after calibration, so gaze coordinates from
+      // that point on may be offset.
+      const snapshots = await prisma.displaySnapshot.findMany({
+        where: participantId ? { user: { participantId } } : {},
+        include: { user: { select: { participantId: true } } },
+        orderBy: { capturedAt: 'asc' },
+      });
+
+      const sameDisplay = (a, b) =>
+        a.innerWidth === b.innerWidth &&
+        a.innerHeight === b.innerHeight &&
+        a.devicePixelRatio === b.devicePixelRatio &&
+        a.screenX === b.screenX &&
+        a.screenY === b.screenY;
+
+      const lastCalibration = new Map(); // userId -> latest calibration snapshot so far
+      const flattenedData = snapshots.map((snap) => {
+        if (snap.stage === 'calibration') lastCalibration.set(snap.userId, snap);
+        const calibration = lastCalibration.get(snap.userId);
+        return {
+          participant_id: snap.user.participantId,
+          stage: snap.stage,
+          captured_at: toEastern(snap.capturedAt),
+          inner_width: snap.innerWidth,
+          inner_height: snap.innerHeight,
+          device_pixel_ratio: snap.devicePixelRatio,
+          screen_width: snap.screenWidth,
+          screen_height: snap.screenHeight,
+          screen_x: snap.screenX,
+          screen_y: snap.screenY,
+          recorded_width: snap.recordedWidth,
+          recorded_height: snap.recordedHeight,
+          // blank when there is no earlier calibration to compare against
+          matches_calibration: calibration ? (sameDisplay(snap, calibration) ? 'yes' : 'no') : '',
+        };
+      });
+
+      const parser = new Parser({
+        fields: [
+          'participant_id',
+          'stage',
+          'captured_at',
+          'inner_width',
+          'inner_height',
+          'device_pixel_ratio',
+          'screen_width',
+          'screen_height',
+          'screen_x',
+          'screen_y',
+          'recorded_width',
+          'recorded_height',
+          'matches_calibration',
+        ],
+      });
+      const csv = parser.parse(flattenedData);
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}display_export.csv`);
+      res.send(csv);
+
     } else {
       return res.status(400).json({
         success: false,
-        error: 'Invalid type. Must be one of: events, sessions, participants, phases',
+        error: 'Invalid type. Must be one of: events, sessions, participants, phases, display',
       });
     }
 

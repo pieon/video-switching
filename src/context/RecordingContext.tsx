@@ -1,7 +1,7 @@
 // Recording context — owns the single screen+webcam recorder above the page
 // level so it survives navigation. Recording is started on the EEG page and
 // stops when the participant leaves the player page (same point as before).
-import React, { createContext, useContext, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/context/AuthContext';
 import { useMediaRecorder } from '@/hooks/useMediaRecorder';
@@ -26,7 +26,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   // The .webm itself starts at t=0 with no absolute time, so log when recording
   // began and ended. gaze.clientTime minus this start gives a sample's offset
   // into the recording.
-  const { startPhase, endPhase } = usePhaseLog('recording');
+  const { startPhase, endPhase, resetPhase } = usePhaseLog('recording');
 
   const startAndLog = useCallback(
     async (overrideDeviceId?: string) => {
@@ -40,7 +40,20 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const stopAndLog = useCallback(() => {
     stopRecording();
     endPhase();
-  }, [stopRecording, endPhase]);
+    resetPhase(); // the next participant in this tab gets a new recording row
+  }, [stopRecording, endPhase, resetPhase]);
+
+  // Stop recording whenever the participant logs out, from any page — a
+  // recording must never continue past the session it belongs to.
+  const hadUserRef = useRef(false);
+  useEffect(() => {
+    if (user) {
+      hadUserRef.current = true;
+    } else if (hadUserRef.current) {
+      hadUserRef.current = false;
+      stopAndLog();
+    }
+  }, [user, stopAndLog]);
 
   // Stop recording when leaving the player page (the experiment is over).
   // At routeChangeStart, router.pathname is still the departing route.

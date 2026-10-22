@@ -2,6 +2,7 @@
 import React, { CSSProperties, ReactNode } from 'react';
 import { Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
 
 interface HeaderProps {
   title: string;
@@ -24,7 +25,8 @@ export function Header({
   children,
   hidden = false,
 }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const confirmLogout = useConfirmedLogout();
 
   if (hidden) {
     return null;
@@ -61,7 +63,7 @@ export function Header({
         )}
 
         {showLogout && (
-          <Button onClick={logout} variant="danger" size="small">
+          <Button onClick={confirmLogout} variant="danger" size="small">
             Logout
           </Button>
         )}

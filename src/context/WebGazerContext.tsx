@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { GazeData } from '@/hooks/useWebGazer';
+import { useAuth } from '@/context/AuthContext';
+import { useGazeLogger, GazePhase } from '@/hooks/useGazeLogger';
+
+// Gaze is logged continuously from the start of calibration until logout, and
+// tagged by the page it was recorded on. /admin sits between calibration and
+// training and counts as training. Routes not listed here are never logged.
+function phaseForPath(pathname: string): GazePhase | null {
+  if (pathname === '/calibrate') return 'calibration';
+  if (pathname === '/admin' || pathname === '/training') return 'training';
+  if (pathname === '/player') return 'experiment';
+  return null;
+}
 
 interface WebGazerContextType {
   isReady: boolean;
@@ -20,13 +32,34 @@ interface WebGazerContextType {
   calibratePoint: (x: number, y: number, eventType?: 'click' | 'move') => void;
   /** Show/hide the camera preview with the face-position feedback box. */
   setVideoPreview: (show: boolean) => void;
+  /** Begin continuous gaze logging (idempotent). Runs until stopGazeLogging/logout. */
+  startGazeLogging: () => void;
+  /** Upload what's buffered and stop logging. Call before logout clears the token. */
+  stopGazeLogging: () => void;
+  /** Upload what's buffered now, without stopping. */
+  flushGaze: () => void;
+  /** Tag subsequent samples with the video on screen ('' / null when none). */
+  setGazeVideoId: (videoId: string | null) => void;
 }
 
 const WebGazerContext = createContext<WebGazerContextType | undefined>(undefined);
 
 export function WebGazerProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [isReady, setIsReady] = useState(false);
+
+  // Continuous logging state. Refs, because the WebGazer listener is
+  // registered once and must always see the current values.
+  const loggingRef = useRef(false);
+  const videoIdRef = useRef<string | null>(null);
+  const pathnameRef = useRef(router.pathname);
+  pathnameRef.current = router.pathname;
+  const { logSample, saveAndClearSamples } = useGazeLogger({
+    participantId: user?.participantId,
+  });
+  const logSampleRef = useRef(logSample);
+  logSampleRef.current = logSample;
 
   const webgazerRef = useRef<any>(null);
   const startedRef = useRef(false);
@@ -55,6 +88,10 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
           }
           const gazeData: GazeData = { x: data.x, y: data.y, timestamp };
           if (saveRef.current) gazeDataRef.current.push(gazeData);
+          if (loggingRef.current) {
+            const phase = phaseForPath(pathnameRef.current);
+            if (phase) logSampleRef.current(gazeData, videoIdRef.current ?? '', phase);
+          }
           listenerRef.current?.(gazeData);
         }
       });
@@ -164,8 +201,30 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     webgazerRef.current?.resume();
   }, []);
 
+  // While logging, pages leaving must not pause tracking — that is exactly the
+  // gap continuous logging exists to close. Tracking stops at logout instead.
   const pause = useCallback(() => {
+    if (loggingRef.current) return;
     webgazerRef.current?.pause();
+  }, []);
+
+  const startGazeLogging = useCallback(() => {
+    loggingRef.current = true;
+    webgazerRef.current?.resume();
+  }, []);
+
+  const stopGazeLogging = useCallback(() => {
+    saveAndClearSamples();
+    loggingRef.current = false;
+    videoIdRef.current = null;
+  }, [saveAndClearSamples]);
+
+  const flushGaze = useCallback(() => {
+    saveAndClearSamples();
+  }, [saveAndClearSamples]);
+
+  const setGazeVideoId = useCallback((videoId: string | null) => {
+    videoIdRef.current = videoId;
   }, []);
 
   const setGazeListener = useCallback((fn: ((data: GazeData) => void) | null) => {
@@ -201,15 +260,27 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const end = useCallback(() => {
-    if (webgazerRef.current) {
+    const webgazer = webgazerRef.current;
+    if (webgazer) {
+      // In WebGazer 3.4.0, end() only stops the prediction loop and removes its
+      // DOM nodes — it does not release the camera. stopVideo() stops the track,
+      // and must run first because end() removes the container it edits.
       try {
-        webgazerRef.current.end();
+        webgazer.stopVideo();
+      } catch (error) {
+        console.error('Error stopping WebGazer camera:', error);
+      }
+      try {
+        webgazer.end();
       } catch (error) {
         console.error('Error cleaning up WebGazer:', error);
       }
     }
     webgazerRef.current = null;
     startedRef.current = false;
+    // Backstop: never carry logging into the next participant's session.
+    loggingRef.current = false;
+    videoIdRef.current = null;
     listenerRef.current = null;
     saveRef.current = false;
     gazeDataRef.current = [];
@@ -241,6 +312,10 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
         clearCalibrationData,
         calibratePoint,
         setVideoPreview,
+        startGazeLogging,
+        stopGazeLogging,
+        flushGaze,
+        setGazeVideoId,
       }}
     >
       {children}
