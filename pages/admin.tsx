@@ -65,7 +65,12 @@ export default function AdminPage() {
         <div style={{ fontSize: 14, color: '#666' }}>
           Participant: {user.participantId}
         </div>
-        <Button variant="danger" size="small" onClick={confirmLogout}>Logout</Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="secondary" size="small" onClick={() => window.open('/control', 'control')}>
+            Open control panel
+          </Button>
+          <Button variant="danger" size="small" onClick={confirmLogout}>Logout</Button>
+        </div>
       </div>
 
       <h1 style={{ textAlign: 'center', marginBottom: 32 }}>

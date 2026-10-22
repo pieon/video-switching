@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useWebGazerContext } from '@/context/WebGazerContext';
 import { usePhaseLog } from '@/hooks/usePhaseLog';
+import { useControlMessages } from '@/utils/controlChannel';
 import {
   TRAINING_VIDEOS_PHASE_2,
   TRAINING_VIDEOS_PHASE_3,
@@ -386,6 +387,9 @@ function PlayingView({
   onSelectVideo, onVideoEnded, onForceSkip, updatePlaybackPosition, getPlaybackPosition,
 }: PlayingViewProps) {
   const noop = () => {};
+  useControlMessages((msg) => {
+    if (msg.type === 'skip') onForceSkip();
+  });
   return (
     <PageLayout maxWidth={1400}>
       <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 8 }}>

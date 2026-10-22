@@ -1,6 +1,7 @@
 // Video player component with controls
 import React, { useRef, useState, useEffect, CSSProperties } from 'react';
 import { Mode, Video } from '@/types';
+import { useControlMessages } from '@/utils/controlChannel';
 
 interface VideoPlayerProps {
   mode: Mode;
@@ -38,6 +39,13 @@ export function VideoPlayer({
   const [isHovering, setIsHovering] = useState(false);
   const [wasPaused, setWasPaused] = useState(false);
   const [previousTime, setPreviousTime] = useState(0);
+
+  // Remote pause/resume from the control panel. The <video> onPlay/onPause
+  // handlers below still fire, so these are tracked like participant clicks.
+  useControlMessages((msg) => {
+    if (msg.type === 'pause') ref.current?.pause();
+    if (msg.type === 'resume') ref.current?.play().catch(() => {});
+  });
 
   // Restore playback position and auto-play when video changes
   useEffect(() => {

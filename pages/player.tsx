@@ -12,6 +12,7 @@ import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
 import { trackingService } from '@/services/trackingService';
 import { readDisplay, getCalibrationDisplay, describeDisplayChange } from '@/utils/displayInfo';
 import { MOCK_VIDEOS } from '@/utils/constants';
+import { postControl, useControlMessages } from '@/utils/controlChannel';
 
 export default function PlayerPage() {
   const router = useRouter();
@@ -177,6 +178,16 @@ export default function PlayerPage() {
     }
   };
 
+  // Control panel: force-select a video (same rules as a participant click)
+  // and report player state whenever it changes or the panel asks.
+  const sendPlayerStatus = () =>
+    postControl({ type: 'playerStatus', current, completed, videos, displayWarning });
+  useEffect(sendPlayerStatus, [current, completed, videos, displayWarning]);
+  useControlMessages((msg) => {
+    if (msg.type === 'select') handleSelectVideo(msg.id);
+    if (msg.type === 'ping') sendPlayerStatus();
+  });
+
   const handleVideoEnded = () => {
     if (!currentVideo) return;
 
@@ -241,7 +252,7 @@ export default function PlayerPage() {
             The experiment is complete. Thank you for participating!
           </p>
           <button
-            onClick={confirmLogout}
+            onClick={() => confirmLogout()}
             style={{
               padding: '14px 32px',
               fontSize: 18,

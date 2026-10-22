@@ -13,11 +13,13 @@ export function useConfirmedLogout() {
   const { isRecording, stopRecording } = useRecording();
   const { stopGazeLogging } = useWebGazerContext();
 
-  return useCallback(() => {
+  // confirm: false skips the dialog — used when the control panel already
+  // confirmed, so no dialog is left open on the participant's screen.
+  return useCallback(({ confirm = true }: { confirm?: boolean } = {}) => {
     const message = isRecording
       ? 'Log out? This stops the screen and webcam recording and saves the files.'
       : 'Log out?';
-    if (!window.confirm(message)) return;
+    if (confirm && !window.confirm(message)) return;
 
     // Stop first, while the participant id (filenames) and token (closing the
     // recording phase row, uploading the last gaze samples) are still set.
