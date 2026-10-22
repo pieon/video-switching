@@ -58,9 +58,6 @@ export default function CalibratePage() {
   const [isMeasuringAccuracy, setIsMeasuringAccuracy] = useState(false);
   const [accuracyPercentage, setAccuracyPercentage] = useState<number | null>(null);
   const gazeCollectionRef = useRef<{ x: number; y: number }[]>([]);
-  // Live gaze readout shown during calibration + accuracy check.
-  // Rolling trace of recent gaze points shown during the accuracy check.
-  const [gazeTrail, setGazeTrail] = useState<{ x: number; y: number }[]>([]);
   // Current validation target dot ({x,y} in px) and per-point ROI results.
   const [validationDot, setValidationDot] = useState<{ x: number; y: number } | null>(null);
   const [validationResults, setValidationResults] = useState<
@@ -90,7 +87,6 @@ export default function CalibratePage() {
   const INTER_TARGET_PAUSE = 1500;  // ms of blank screen between validation targets
   const PASS_THRESHOLD = 70;        // min % of samples within ROI (per point) to pass
   const DPI = 96;
-  const GAZE_TRAIL_MAX = 20;        // max gaze-trace dots shown; oldest drops off
 
   const getValidationPoints = () => {
     const w = window.innerWidth;
@@ -223,8 +219,8 @@ export default function CalibratePage() {
     }
   }, [isCalibrating, currentPointIndex]);
 
-  // Single gaze listener active while calibrating or measuring: it updates the
-  // live readout (throttled) and buffers samples during the accuracy window.
+  // Single gaze listener active while calibrating or measuring: it buffers
+  // samples during the accuracy window.
   useEffect(() => {
     if (!isCalibrating && !isMeasuringAccuracy) return;
 
@@ -233,21 +229,11 @@ export default function CalibratePage() {
       if (isCollectingRef.current) {
         gazeCollectionRef.current.push({ x: data.x, y: data.y });
       }
-      // Rolling trace of the last GAZE_TRAIL_MAX viewpoints (accuracy check only).
-      if (isMeasuringAccuracy) {
-        const point = { x: data.x, y: data.y };
-        setGazeTrail((prev) => {
-          const next = prev.length >= GAZE_TRAIL_MAX ? prev.slice(1) : prev.slice();
-          next.push(point);
-          return next;
-        });
-      }
     };
     setGazeListener(onGaze);
 
     return () => {
       setGazeListener(null);
-      setGazeTrail([]);
     };
   }, [isCalibrating, isMeasuringAccuracy, setGazeListener]);
 
@@ -328,7 +314,6 @@ export default function CalibratePage() {
     setIsComplete(false);
     setAccuracyPercentage(null);
     setValidationResults([]);
-    setGazeTrail([]);
     runValidation();
   };
 
@@ -548,25 +533,6 @@ export default function CalibratePage() {
             </p>
           </div>
 
-          {/* Rolling trace of the user's recent gaze points (max GAZE_TRAIL_MAX) */}
-          {gazeTrail.map((p, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: p.x,
-                top: p.y,
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                background: '#878786',
-                transform: 'translate(-50%, -50%)',
-                opacity: ((i + 1) / gazeTrail.length) * 0.8,
-                pointerEvents: 'none',
-              }}
-            />
-          ))}
-
           {/* Validation target at the current position */}
           {validationDot && (
             <img
@@ -606,15 +572,6 @@ export default function CalibratePage() {
           bottom: 24px !important;
           right: 24px !important;
           z-index: 1001 !important;
-        }
-        body #webgazerGazeDot {
-          background: rgba(33, 150, 243, 0.45) !important;
-          width: 10px !important;
-          height: 10px !important;
-          border-radius: 50% !important;
-          box-shadow: none !important;
-          opacity: 1 !important;
-          display: ${isCalibrating || isMeasuringAccuracy ? 'block' : 'none'} !important;
         }
       `}</style>
 
