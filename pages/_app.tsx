@@ -29,6 +29,16 @@ function ControlReceiver() {
   };
   useEffect(sendStatus, [isPanel, router.asPath, user, isRecording]);
 
+  // No right-click menu on participant pages (control panel and researcher
+  // dashboard keep it).
+  const allowContextMenu = isPanel || router.pathname === '/researcher';
+  useEffect(() => {
+    if (allowContextMenu) return;
+    const block = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener('contextmenu', block);
+    return () => document.removeEventListener('contextmenu', block);
+  }, [allowContextMenu]);
+
   useControlMessages((msg) => {
     if (isPanel) return;
     if (msg.type === 'ping') sendStatus();

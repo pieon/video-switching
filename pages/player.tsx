@@ -1,14 +1,13 @@
 // Video player page - Next.js
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { PageLayout, HamburgerMenu } from '@/components/layout';
+import { PageLayout } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useSession } from '@/hooks/useSession';
 import { useWebGazerContext } from '@/context/WebGazerContext';
 import { usePhaseLog } from '@/hooks/usePhaseLog';
-import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
 import { trackingService } from '@/services/trackingService';
 import { readDisplay, getCalibrationDisplay, describeDisplayChange } from '@/utils/displayInfo';
 import { MOCK_VIDEOS } from '@/utils/constants';
@@ -17,7 +16,6 @@ import { postControl, useControlMessages } from '@/utils/controlChannel';
 export default function PlayerPage() {
   const router = useRouter();
   const { user, mode, isLoading } = useAuth();
-  const confirmLogout = useConfirmedLogout();
   useExperimentTheme();
 
   // Block the right-click menu while on the player — the video's native menu
@@ -251,21 +249,6 @@ export default function PlayerPage() {
           <p style={{ fontSize: 16, color: '#ffffff', marginBottom: 24 }}>
             The experiment is complete. Thank you for participating!
           </p>
-          <button
-            onClick={() => confirmLogout()}
-            style={{
-              padding: '14px 32px',
-              fontSize: 18,
-              fontWeight: 600,
-              background: '#007AFF',
-              color: 'white',
-              border: 'none',
-              borderRadius: 12,
-              cursor: 'pointer',
-            }}
-          >
-            Log Out
-          </button>
         </div>
       </PageLayout>
     );
@@ -273,8 +256,6 @@ export default function PlayerPage() {
 
   return (
     <PageLayout maxWidth={1400}>
-      <HamburgerMenu />
-
       {/* Deliberately muted: on the mirrored setup the child sees this too. */}
       {displayWarning && (
         <div

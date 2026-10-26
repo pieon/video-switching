@@ -2,16 +2,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
-import { Card, Button } from '@/components/ui';
+import { Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { Mode, VideoSet } from '@/types';
-import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
 import { readDisplay, getCalibrationDisplay, describeDisplayChange } from '@/utils/displayInfo';
+import { useControlActions } from '@/utils/controlChannel';
 
 export default function AdminPage() {
   const router = useRouter();
   const { user, setMode, setVideoSet, isLoading } = useAuth();
-  const confirmLogout = useConfirmedLogout();
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -38,6 +37,34 @@ export default function AdminPage() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  // One participant ID = one condition. A crossover is run by creating a
+  // second participant ID with the opposite assignment.
+  const currentMode: Mode = user?.condition ?? 'non_switching';
+  const currentSet: VideoSet = user?.videoSet ?? 'A';
+
+  const handleStart = () => {
+    if (!user) return;
+    setMode(currentMode);
+    setVideoSet(currentSet);
+    // Clear stale session state so the player always starts fresh
+    localStorage.removeItem(`video_switching_${currentMode}`);
+    router.push(`/training?mode=${currentMode}&set=${currentSet}&trainingType=${user.trainingType ?? 'full'}`);
+  };
+
+  useControlActions(
+    [
+      { id: 'start', label: 'Start Session', run: handleStart },
+      ...(displayChanges
+        ? [{ id: 'recalibrate', label: 'Recalibrate', variant: 'secondary' as const, run: () => router.push('/calibrate') }]
+        : []),
+    ],
+    displayChanges === null
+      ? []
+      : displayChanges.length === 0
+      ? ['⚠ No calibration in this tab — gaze will not be reliable.']
+      : ['⚠ Display changed since calibration:', ...displayChanges]
+  );
+
   if (isLoading || !user) {
     return (
       <PageLayout>
@@ -46,31 +73,10 @@ export default function AdminPage() {
     );
   }
 
-  // One participant ID = one condition. A crossover is run by creating a
-  // second participant ID with the opposite assignment.
-  const currentMode: Mode = user.condition;
-  const currentSet: VideoSet = user.videoSet ?? 'A';
-
-  const handleStart = () => {
-    setMode(currentMode);
-    setVideoSet(currentSet);
-    // Clear stale session state so the player always starts fresh
-    localStorage.removeItem(`video_switching_${currentMode}`);
-    router.push(`/training?mode=${currentMode}&set=${currentSet}&trainingType=${user.trainingType ?? 'full'}`);
-  };
-
   return (
     <PageLayout maxWidth={600} style={{ marginTop: 40 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 14, color: '#666' }}>
-          Participant: {user.participantId}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="secondary" size="small" onClick={() => window.open('/control', 'control')}>
-            Open control panel
-          </Button>
-          <Button variant="danger" size="small" onClick={confirmLogout}>Logout</Button>
-        </div>
+      <div style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>
+        Participant: {user.participantId}
       </div>
 
       <h1 style={{ textAlign: 'center', marginBottom: 32 }}>
@@ -102,9 +108,6 @@ export default function AdminPage() {
               </ul>
             </>
           )}
-          <Button onClick={() => router.push('/calibrate')} size="small">
-            Recalibrate
-          </Button>
         </Card>
       )}
 
@@ -149,10 +152,6 @@ export default function AdminPage() {
             </span>
           </div>
         </div>
-
-        <Button onClick={handleStart} fullWidth size="large">
-          Start Session
-        </Button>
       </Card>
     </PageLayout>
   );

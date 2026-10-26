@@ -2,12 +2,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
-import { Button, Card } from '@/components/ui';
+import { Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { GazeData } from '@/hooks/useWebGazer';
 import { useWebGazerContext } from '@/context/WebGazerContext';
 import { trackingService } from '@/services/trackingService';
 import { readDisplay, saveCalibrationDisplay } from '@/utils/displayInfo';
+import { postControl, useControlActions } from '@/utils/controlChannel';
 
 const CALIBRATION_POINTS = [
   { id: 1, x: 10, y: 10 }, // Top-left
@@ -229,11 +230,34 @@ export default function CalibratePage() {
       if (isCollectingRef.current) {
         gazeCollectionRef.current.push({ x: data.x, y: data.y });
       }
+      // Gaze dot is drawn only on the control panel's preview.
+      // screen.left/top are Chrome-only (the monitor's origin on multi-screen setups).
+      const scr = window.screen as Screen & { left?: number; top?: number };
+      postControl({
+        type: 'gaze',
+        point: {
+          x: data.x,
+          y: data.y,
+          view: {
+            innerW: window.innerWidth,
+            innerH: window.innerHeight,
+            outerW: window.outerWidth,
+            outerH: window.outerHeight,
+            screenX: window.screenX,
+            screenY: window.screenY,
+            screenLeft: scr.left ?? 0,
+            screenTop: scr.top ?? 0,
+            screenW: scr.width,
+            screenH: scr.height,
+          },
+        },
+      });
     };
     setGazeListener(onGaze);
 
     return () => {
       setGazeListener(null);
+      postControl({ type: 'gaze', point: null });
     };
   }, [isCalibrating, isMeasuringAccuracy, setGazeListener]);
 
@@ -325,6 +349,39 @@ export default function CalibratePage() {
     router.push('/admin');
   };
 
+  // Every step is driven from the control panel; results are shown only there.
+  const passed = accuracyPercentage !== null && accuracyPercentage >= PASS_THRESHOLD;
+  useControlActions(
+    isPositioning
+      ? [
+          { id: 'start', label: 'Start Calibration', run: startCalibration },
+          { id: 'skip', label: 'Skip Calibration', variant: 'secondary', run: handleSkipCalibration },
+        ]
+      : isCalibrating && currentPointIndex !== null
+      ? [{ id: 'capture', label: 'Capture point', disabled: isSampling, run: () => handlePointClick(currentPointIndex) }]
+      : showAccuracyConfirm
+      ? [{ id: 'accuracy', label: 'Start Accuracy Check', run: handleStartAccuracyCheck }]
+      : isComplete && accuracyPercentage !== null
+      ? [
+          { id: 'accept', label: passed ? 'Continue' : 'Accept Anyway', variant: passed ? 'primary' : 'secondary', run: handleAcceptCalibration },
+          { id: 'recalibrate', label: 'Redo Calibration', variant: passed ? 'secondary' : 'primary', run: handleRecalibrate },
+          { id: 'redoAccuracy', label: 'Redo Accuracy Check', variant: 'secondary', run: handleRedoAccuracyCheck },
+        ]
+      : [],
+    !isReady
+      ? ['Eye tracking initializing…']
+      : isPositioning
+      ? ["Wait until the face box in the participant's camera preview is green."]
+      : isCalibrating
+      ? [`Point ${currentOrderIndex + 1} / ${CALIBRATION_POINTS.length} — capture while the participant looks at it.`]
+      : isMeasuringAccuracy
+      ? ['Checking accuracy…']
+      : [],
+    isComplete && accuracyPercentage !== null
+      ? { results: validationResults, threshold: PASS_THRESHOLD }
+      : undefined
+  );
+
   if (isLoading || !user) {
     return (
       <PageLayout>
@@ -382,7 +439,7 @@ export default function CalibratePage() {
             First, center your face in the camera preview (bottom-right) until the box around it turns <strong>green</strong>.
           </p>
           <p style={{ fontSize: 16, marginBottom: 16, color: '#666' }}>
-            You'll then see 9 points on the screen, one at a time. Look directly at each point, <strong>click it once, and keep looking at it until it moves</strong>, keeping your head still.
+            You'll then see 9 points on the screen, one at a time. Look directly at each point and <strong>keep looking at it until it moves</strong>, keeping your head still.
           </p>
           <div style={{
             background: '#fff3cd',
@@ -396,18 +453,10 @@ export default function CalibratePage() {
             <strong>Tips for best accuracy:</strong>
             <ul style={{ textAlign: 'left', marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
               <li>Keep your head still during calibration</li>
-              <li>Keep looking at each point after you click it, until it moves to the next spot</li>
+              <li>Keep looking at each point until it moves to the next spot</li>
               <li>Sit at a comfortable distance from the screen (~40cm)</li>
               <li>Ensure good lighting on your face</li>
             </ul>
-          </div>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            <Button onClick={startCalibration} size="large">
-              Start Calibration
-            </Button>
-            <Button onClick={handleSkipCalibration} variant="secondary" size="large">
-              Skip Calibration
-            </Button>
           </div>
         </Card>
       )}
@@ -431,10 +480,8 @@ export default function CalibratePage() {
             const isCompleted = completedPoints.includes(point.id);
 
             return (
-              <button
+              <div
                 key={point.id}
-                onClick={() => handlePointClick(index)}
-                disabled={!isActive}
                 style={{
                   position: 'absolute',
                   left: `${point.x}%`,
@@ -445,13 +492,11 @@ export default function CalibratePage() {
                   border: 'none',
                   background: 'transparent',
                   padding: 0,
-                  cursor: isActive && !isSampling ? 'pointer' : 'default',
                   transition: 'all 0.3s ease',
                   opacity: isCompleted ? 0.0 : isActive ? 1.0 : 0.0,
                   // Hold still while sampling so the target doesn't move under the gaze.
                   animation: isActive && !isSampling ? 'pulse 1.5s ease-in-out infinite' : 'none',
                 }}
-                aria-label={`Calibration point ${point.id}`}
               >
                 <img
                   src="/Images/rilakuma.gif"
@@ -464,7 +509,7 @@ export default function CalibratePage() {
                     display: 'block',
                   }}
                 />
-              </button>
+              </div>
             );
           })}
         </div>
@@ -496,11 +541,8 @@ export default function CalibratePage() {
             fontSize: 14,
             color: '#1565c0'
           }}>
-            <strong>Ready when you are!</strong> Click the button below when you're ready to begin the accuracy test.
+            <strong>Get ready!</strong> The accuracy check will begin shortly.
           </div>
-          <Button onClick={handleStartAccuracyCheck} size="large">
-            Start Accuracy Check
-          </Button>
         </Card>
       )}
 
@@ -577,73 +619,8 @@ export default function CalibratePage() {
 
       {isComplete && accuracyPercentage !== null && (
         <Card style={{ marginTop: 24, textAlign: 'center' }}>
-          <h2 style={{ marginTop: 0, color: accuracyPercentage >= PASS_THRESHOLD ? '#4caf50' : '#ff9800' }}>
-            {accuracyPercentage >= PASS_THRESHOLD ? '✓ Calibration Complete!' : '⚠ Calibration Completed'}
-          </h2>
-
-          {/* Per-region ROI results */}
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', margin: '16px 0 24px' }}>
-            {validationResults.map((r) => {
-              const pass = r.percentInROI >= PASS_THRESHOLD;
-              return (
-                <div
-                  key={r.label}
-                  style={{
-                    minWidth: 200,
-                    padding: 16,
-                    borderRadius: 12,
-                    border: `2px solid ${pass ? '#4caf50' : '#ff9800'}`,
-                    background: pass ? '#e8f5e9' : '#fff3e0',
-                  }}
-                >
-                  <div style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>{r.label}</div>
-                  <div style={{ fontSize: 36, fontWeight: 'bold', color: pass ? '#4caf50' : '#ff9800' }}>
-                    {r.percentInROI}%
-                  </div>
-                  <div style={{ fontSize: 13, color: '#666' }}>within target</div>
-                  <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                    {r.offsetCm}cm avg offset
-                  </div>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                    {r.meanDistPx}px mean distance from center
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <p style={{ fontSize: 16, marginBottom: 24, color: '#666' }}>
-            {accuracyPercentage >= 85
-              ? 'Excellent accuracy in both regions.'
-              : accuracyPercentage >= PASS_THRESHOLD
-              ? 'Good accuracy. You can proceed, or redo the calibration or the accuracy check for better results.'
-              : 'Low accuracy in at least one region. Redo the calibration, or just retry the accuracy check if you think you looked away.'}
-          </p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            {accuracyPercentage < PASS_THRESHOLD && (
-              <>
-                <Button onClick={handleRecalibrate} variant="primary" size="large">
-                  Redo Calibration
-                </Button>
-                <Button onClick={handleRedoAccuracyCheck} variant="secondary" size="large">
-                  Redo Accuracy Check Only
-                </Button>
-              </>
-            )}
-            <Button onClick={handleAcceptCalibration} variant={accuracyPercentage >= PASS_THRESHOLD ? 'primary' : 'secondary'} size="large">
-              {accuracyPercentage >= PASS_THRESHOLD ? 'Continue to Settings' : 'Accept Anyway'}
-            </Button>
-            {accuracyPercentage >= PASS_THRESHOLD && (
-              <>
-                <Button onClick={handleRecalibrate} variant="secondary" size="large">
-                  Redo Calibration
-                </Button>
-                <Button onClick={handleRedoAccuracyCheck} variant="secondary" size="large">
-                  Redo Accuracy Check Only
-                </Button>
-              </>
-            )}
-          </div>
+          <h2 style={{ marginTop: 0 }}>All done!</h2>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 0 }}>Please wait a moment.</p>
         </Card>
       )}
     </PageLayout>

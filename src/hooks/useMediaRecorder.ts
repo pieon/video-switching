@@ -4,6 +4,14 @@ import { appendChunk, getPendingChunks, clearChunks } from '@/utils/recordingSto
 import { trackingService } from '@/services/trackingService';
 import { readDisplay } from '@/utils/displayInfo';
 
+// The screen being recorded, exposed so the control panel (opened by this
+// window) can show the same screen without a second share prompt.
+declare global {
+  interface Window {
+    participantScreen?: MediaStream | null;
+  }
+}
+
 interface UseMediaRecorderOptions {
   participantId?: string;
   cameraDeviceId?: string;
@@ -107,6 +115,7 @@ export function useMediaRecorder({
         audio: false,
       });
       screenStreamRef.current = screenStream;
+      window.participantScreen = screenStream;
 
       // The recording's frame size is set by the captured surface, not the
       // browser viewport. Log both so gaze (viewport CSS px) can be mapped onto
@@ -210,6 +219,7 @@ export function useMediaRecorder({
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((track) => track.stop());
       screenStreamRef.current = null;
+      window.participantScreen = null;
     }
     if (webcamStreamRef.current) {
       webcamStreamRef.current.getTracks().forEach((track) => track.stop());

@@ -3,12 +3,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
 import { VideoPlayer, VideoGrid } from '@/components/video';
-import { Button, Card } from '@/components/ui';
+import { Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useExperimentTheme } from '@/hooks/useExperimentTheme';
 import { useWebGazerContext } from '@/context/WebGazerContext';
 import { usePhaseLog } from '@/hooks/usePhaseLog';
-import { useControlMessages } from '@/utils/controlChannel';
+import { useControlActions } from '@/utils/controlChannel';
 import {
   TRAINING_VIDEOS_PHASE_2,
   TRAINING_VIDEOS_PHASE_3,
@@ -92,6 +92,19 @@ function TrainingShort() {
 
   const isSwitching = trainingMode === 'switching';
 
+  const forceSkip = () => {
+    setPhase('complete');
+    setCurrent(null);
+  };
+  useControlActions(
+    phase === 'intro'
+      ? [{ id: 'start', label: 'Start Training', run: () => setPhase('playing') }]
+      : phase === 'playing'
+      ? [{ id: 'skip', label: 'Skip to next step', variant: 'warning', run: forceSkip }]
+      : [{ id: 'experiment', label: 'Start Experiment', run: () => router.push('/player') }],
+    phase === 'playing' ? [`${completed.length} / ${videos.length} videos watched`] : []
+  );
+
   if (phase === 'intro') {
     return (
       <PageLayout maxWidth={700}>
@@ -101,16 +114,13 @@ function TrainingShort() {
             Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
           </p>
           <ModeBlurb isSwitching={isSwitching} />
-          <Button onClick={() => setPhase('playing')} size="large">
-            Start Training
-          </Button>
         </Card>
       </PageLayout>
     );
   }
 
   if (phase === 'complete') {
-    return <TrainingCompleteCard onContinue={() => router.push('/player')} />;
+    return <TrainingCompleteCard />;
   }
 
   return (
@@ -133,10 +143,6 @@ function TrainingShort() {
           setPlaybackPositions(prev => ({ ...prev, [currentVideo.id]: 0 }));
           setCurrent(null);
         }
-      }}
-      onForceSkip={() => {
-        setPhase('complete');
-        setCurrent(null);
       }}
       updatePlaybackPosition={updatePlaybackPosition}
       getPlaybackPosition={getPlaybackPosition}
@@ -220,6 +226,22 @@ function TrainingFull() {
 
   const isSwitching = trainingMode === 'switching';
 
+  const forceSkip = () => {
+    if (phase === 'playing1') { setPhase(TRAINING_PHASES >= 2 ? 'intro2' : 'complete'); setPlaybackPositions({}); }
+    else if (phase === 'playing2') { setPhase(TRAINING_PHASES >= 3 ? 'intro3' : 'complete'); setPlaybackPositions({}); }
+    else if (phase === 'playing3') { setPhase('complete'); }
+    setCurrent(null);
+  };
+  const introNumber = phase === 'intro1' ? 1 : phase === 'intro2' ? 2 : phase === 'intro3' ? 3 : null;
+  useControlActions(
+    introNumber !== null
+      ? [{ id: 'start', label: `Start Training ${introNumber}`, run: () => setPhase(`playing${introNumber}` as Phase) }]
+      : phase === 'complete'
+      ? [{ id: 'experiment', label: 'Start Experiment', run: () => router.push('/player') }]
+      : [{ id: 'skip', label: 'Skip to next step', variant: 'warning', run: forceSkip }],
+    phase.startsWith('playing') ? [`${completed.length} / ${phaseVideos.length} videos watched`] : []
+  );
+
   if (phase === 'intro1') {
     return (
       <PageLayout maxWidth={700}>
@@ -229,9 +251,6 @@ function TrainingFull() {
             Before the experiment begins, you'll practice with the {isSwitching ? 'switching' : 'non-switching'} mode so you know what to expect.
           </p>
           <ModeBlurb isSwitching={isSwitching} />
-          <Button onClick={() => setPhase('playing1')} size="large">
-            Start Training 1
-          </Button>
         </Card>
       </PageLayout>
     );
@@ -245,9 +264,6 @@ function TrainingFull() {
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             Now you'll practice with shorter clips of the same videos.
           </p>
-          <Button onClick={() => setPhase('playing2')} size="large">
-            Start Training 2
-          </Button>
         </Card>
       </PageLayout>
     );
@@ -261,16 +277,13 @@ function TrainingFull() {
           <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
             Now you'll practice with a different set of videos before the experiment.
           </p>
-          <Button onClick={() => setPhase('playing3')} size="large">
-            Start Training 3
-          </Button>
         </Card>
       </PageLayout>
     );
   }
 
   if (phase === 'complete') {
-    return <TrainingCompleteCard onContinue={() => router.push('/player')} message={TRAINING_PHASES > 1 ? "You've completed all three training sessions. You're now ready for the experiment." : "You've completed training. You're now ready for the experiment."} />;
+    return <TrainingCompleteCard message={TRAINING_PHASES > 1 ? "You've completed all three training sessions. You're now ready for the experiment." : "You've completed training. You're now ready for the experiment."} />;
   }
 
   const trainingNumber = phase === 'playing3' ? 3 : phase === 'playing2' ? 2 : 1;
@@ -295,12 +308,6 @@ function TrainingFull() {
           setPlaybackPositions(prev => ({ ...prev, [currentVideo.id]: 0 }));
           setCurrent(null);
         }
-      }}
-      onForceSkip={() => {
-        if (phase === 'playing1') { setPhase(TRAINING_PHASES >= 2 ? 'intro2' : 'complete'); setPlaybackPositions({}); }
-        else if (phase === 'playing2') { setPhase(TRAINING_PHASES >= 3 ? 'intro3' : 'complete'); setPlaybackPositions({}); }
-        else if (phase === 'playing3') { setPhase('complete'); }
-        setCurrent(null);
       }}
       updatePlaybackPosition={updatePlaybackPosition}
       getPlaybackPosition={getPlaybackPosition}
@@ -353,7 +360,7 @@ function useTrainingGaze(currentVideoId: string | null) {
   useEffect(() => () => setGazeVideoId(null), [setGazeVideoId]);
 }
 
-function TrainingCompleteCard({ onContinue, message }: { onContinue: () => void; message?: string }) {
+function TrainingCompleteCard({ message }: { message?: string }) {
   return (
     <PageLayout maxWidth={700}>
       <Card style={{ marginTop: 48, textAlign: 'center' }}>
@@ -361,7 +368,6 @@ function TrainingCompleteCard({ onContinue, message }: { onContinue: () => void;
         <p style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
           {message ?? "You're now ready for the experiment."}
         </p>
-        <Button onClick={onContinue} size="large">Start Experiment</Button>
       </Card>
     </PageLayout>
   );
@@ -377,19 +383,15 @@ interface PlayingViewProps {
   trainingMode: Mode;
   onSelectVideo: (id: string) => void;
   onVideoEnded: () => void;
-  onForceSkip: () => void;
   updatePlaybackPosition: (id: string, position: number) => void;
   getPlaybackPosition: (id: string) => number;
 }
 
 function PlayingView({
   phaseLabel, isSwitching, videos, completed, current, currentVideo, trainingMode,
-  onSelectVideo, onVideoEnded, onForceSkip, updatePlaybackPosition, getPlaybackPosition,
+  onSelectVideo, onVideoEnded, updatePlaybackPosition, getPlaybackPosition,
 }: PlayingViewProps) {
   const noop = () => {};
-  useControlMessages((msg) => {
-    if (msg.type === 'skip') onForceSkip();
-  });
   return (
     <PageLayout maxWidth={1400}>
       <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 8 }}>
@@ -405,22 +407,6 @@ function PlayingView({
         }}>
           {phaseLabel}
         </span>
-        <button
-          onClick={onForceSkip}
-          style={{
-            marginLeft: 12,
-            padding: '6px 14px',
-            borderRadius: 20,
-            fontSize: 13,
-            fontWeight: 600,
-            background: 'transparent',
-            color: '#fff',
-            border: '1px solid #888',
-            cursor: 'pointer',
-          }}
-        >
-          Skip to next step →
-        </button>
       </div>
 
       <main style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>

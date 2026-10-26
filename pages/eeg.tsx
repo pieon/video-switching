@@ -2,13 +2,14 @@
 // Shown after login, before eye-tracking calibration. First the researcher
 // selects the camera (so the system knows which device to record/calibrate
 // with), then a baseline video plays while the EEG device is fitted.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { PageLayout } from '@/components/layout';
 import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useRecording } from '@/context/RecordingContext';
 import { usePhaseLog } from '@/hooks/usePhaseLog';
+import { useControlActions } from '@/utils/controlChannel';
 
 const CAMERA_STORAGE_KEY = 'selected_camera_device_id';
 
@@ -25,6 +26,26 @@ export default function EEGPage() {
 
   // Baseline video exposure: first play through natural end.
   const { startPhase, endPhase } = usePhaseLog('eeg_baseline');
+
+  // The baseline video is played/paused from the control panel with one
+  // toggle. play() is allowed because this window already got a click
+  // (Start Recording).
+  const baselineRef = useRef<HTMLVideoElement>(null);
+  const [isBaselinePlaying, setIsBaselinePlaying] = useState(false);
+  const toggleBaseline = () => {
+    const v = baselineRef.current;
+    if (!v) return;
+    if (v.paused) v.play().catch(() => {});
+    else v.pause();
+  };
+  useControlActions(
+    phase === 'video'
+      ? [
+          { id: 'playback', label: isBaselinePlaying ? '❚❚ Pause' : '▶︎ Play', variant: 'secondary', run: toggleBaseline },
+          { id: 'continue', label: 'Continue to Calibration', run: () => router.push('/calibrate') },
+        ]
+      : []
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -125,30 +146,16 @@ export default function EEGPage() {
 
   return (
     <PageLayout maxWidth={2000} style={{ marginTop: 40 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button
-          onClick={() => router.push('/calibrate')}
-          style={{
-            padding: '6px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            background: 'transparent',
-            color: '#000',
-            border: '1px solid #000',
-            borderRadius: 8,
-            cursor: 'pointer',
-          }}
-        >
-          Continue to Calibration
-        </button>
-      </div>
-
       <Card>
         <video
+          ref={baselineRef}
           src="/videos/training/EEG_Baseline_Video.mp4"
-          controls
           playsInline
-          onPlay={startPhase}
+          onPlay={() => {
+            setIsBaselinePlaying(true);
+            startPhase();
+          }}
+          onPause={() => setIsBaselinePlaying(false)}
           onEnded={() => endPhase()}
           style={{
             width: '100%',

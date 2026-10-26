@@ -19,6 +19,9 @@ export function LoginForm() {
       const { user } = await trackingService.login(participantId);
       console.log('Logged in:', user);
       login(user);
+      // Separate window (not a tab) so the participant page stays visible.
+      // Same name as the admin-page button, so it reuses an open panel.
+      window.open('/control', 'control', 'popup');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your Participant ID.');
     } finally {
