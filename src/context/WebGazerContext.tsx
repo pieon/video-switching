@@ -3,6 +3,25 @@ import { useRouter } from 'next/router';
 import { GazeData } from '@/hooks/useWebGazer';
 import { useAuth } from '@/context/AuthContext';
 import { useGazeLogger, GazePhase } from '@/hooks/useGazeLogger';
+import { postControl } from '@/utils/controlChannel';
+
+// ponytail: assumes an adult eye spacing to turn webcam pixels into cm; the
+// cm figures scale with the participant's real spacing (children's is smaller).
+const EYE_GAP_CM = 6.3;
+const HEAD_REPORT_MS = 500;
+
+interface HeadPos { x: number; y: number; gap: number }
+
+// Centre between the eyes and the distance between them, in webcam pixels,
+// from the face landmarks WebGazer found in its latest frame.
+function readHead(webgazer: any): HeadPos | null {
+  const p = webgazer?.getTracker?.()?.getPositions?.();
+  if (!p) return null;
+  // MediaPipe FaceMesh eye corners: 33/133 one eye, 362/263 the other.
+  const rx = (p[33][0] + p[133][0]) / 2, ry = (p[33][1] + p[133][1]) / 2;
+  const lx = (p[362][0] + p[263][0]) / 2, ly = (p[362][1] + p[263][1]) / 2;
+  return { x: (rx + lx) / 2, y: (ry + ly) / 2, gap: Math.hypot(lx - rx, ly - ry) };
+}
 
 // Gaze is logged continuously from the start of calibration until logout, and
 // tagged by the page it was recorded on. /admin sits between calibration and
@@ -30,6 +49,8 @@ interface WebGazerContextType {
   clearCalibrationData: () => void;
   /** Feed an explicit calibration sample (known target) to the regression model. */
   calibratePoint: (x: number, y: number, eventType?: 'click' | 'move') => void;
+  /** Remember the current head position; /control then shows movement from it. */
+  setHeadHome: () => void;
   /** Show/hide the camera preview with the face-position feedback box. */
   setVideoPreview: (show: boolean) => void;
   /** Begin continuous gaze logging (idempotent). Runs until stopGazeLogging/logout. */
@@ -67,6 +88,15 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
   const listenerRef = useRef<((data: GazeData) => void) | null>(null);
   const saveRef = useRef(false);
   const gazeDataRef = useRef<GazeData[]>([]);
+  // Head position: averaged over HEAD_REPORT_MS windows to smooth tracker jitter.
+  const headHomeRef = useRef<HeadPos | null>(null);
+  const headLatestRef = useRef<HeadPos | null>(null);
+  const headSumRef = useRef({ x: 0, y: 0, gap: 0, n: 0, start: 0 });
+
+  const clearHead = () => {
+    headHomeRef.current = null;
+    postControl({ type: 'head', head: null });
+  };
 
   const start = useCallback(async (cameraDeviceId?: string): Promise<void> => {
     if (typeof window === 'undefined') return;
@@ -94,6 +124,28 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
           }
           listenerRef.current?.(gazeData);
         }
+
+        const h = readHead(webgazer);
+        if (!h) return;
+        const s = headSumRef.current;
+        s.x += h.x; s.y += h.y; s.gap += h.gap; s.n++;
+        const now = performance.now();
+        if (now - s.start < HEAD_REPORT_MS) return;
+        const avg = { x: s.x / s.n, y: s.y / s.n, gap: s.gap / s.n };
+        headSumRef.current = { x: 0, y: 0, gap: 0, n: 0, start: now };
+        headLatestRef.current = avg;
+        const home = headHomeRef.current;
+        if (!home) return;
+        const cmPerPx = EYE_GAP_CM / avg.gap;
+        postControl({
+          type: 'head',
+          head: {
+            // The camera faces the participant, so their right is image left.
+            rightCm: -(avg.x - home.x) * cmPerPx,
+            upCm: -(avg.y - home.y) * cmPerPx,
+            closerPct: (avg.gap / home.gap - 1) * 100,
+          },
+        });
       });
 
       webgazer.showVideoPreview(false);
@@ -206,6 +258,7 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
   const pause = useCallback(() => {
     if (loggingRef.current) return;
     webgazerRef.current?.pause();
+    postControl({ type: 'head', head: null });
   }, []);
 
   const startGazeLogging = useCallback(() => {
@@ -243,6 +296,11 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
 
   const clearCalibrationData = useCallback(() => {
     webgazerRef.current?.clearData();
+    clearHead();
+  }, []);
+
+  const setHeadHome = useCallback(() => {
+    headHomeRef.current = headLatestRef.current;
   }, []);
 
   const calibratePoint = useCallback(
@@ -284,6 +342,8 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     listenerRef.current = null;
     saveRef.current = false;
     gazeDataRef.current = [];
+    headLatestRef.current = null;
+    clearHead();
     setIsReady(false);
   }, []);
 
@@ -311,6 +371,7 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
         clearGazeData,
         clearCalibrationData,
         calibratePoint,
+        setHeadHome,
         setVideoPreview,
         startGazeLogging,
         stopGazeLogging,

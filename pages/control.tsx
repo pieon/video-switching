@@ -2,7 +2,7 @@
 // Drives the participant window over a BroadcastChannel (see controlChannel).
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
-import { ControlMessage, GazeView, postControl, useControlMessages } from '@/utils/controlChannel';
+import { ControlMessage, GazeView, HeadOffset, postControl, useControlMessages } from '@/utils/controlChannel';
 
 type Status = Extract<ControlMessage, { type: 'status' }>;
 type PlayerStatus = Extract<ControlMessage, { type: 'playerStatus' }>;
@@ -20,12 +20,16 @@ const row = { display: 'flex', flexWrap: 'wrap' as const, gap: 8 };
 const DOT = 18;
 const ACTIVE = '#1976d2';
 const INACTIVE = '#ccc';
+// Head movement since calibration beyond which the line turns red.
+const HEAD_LIMIT_CM = 1.5;
+const HEAD_LIMIT_PCT = 10;
 
 export default function ControlPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [player, setPlayer] = useState<PlayerStatus | null>(null);
   const [pageActions, setPageActions] = useState<PageActions | null>(null);
   const [gaze, setGaze] = useState<{ x: number; y: number; view: GazeView } | null>(null);
+  const [head, setHead] = useState<HeadOffset | null>(null);
 
   useControlMessages((msg) => {
     if (msg.type === 'status') {
@@ -39,6 +43,7 @@ export default function ControlPage() {
     if (msg.type === 'playerStatus') setPlayer(msg);
     if (msg.type === 'actions') setPageActions(msg);
     if (msg.type === 'gaze') setGaze(msg.point);
+    if (msg.type === 'head') setHead(msg.head);
   });
 
   // Ask an already-open participant window to report in.
@@ -272,6 +277,20 @@ export default function ControlPage() {
                   <div style={{ color: '#666', fontSize: 12 }}>Start it by clicking in the participant window (EEG page)</div>
                 )}
                 {player?.displayWarning && <div style={{ color: '#e65100' }}>⚠ {player.displayWarning}</div>}
+                {head && (
+                  <div
+                    style={{
+                      color:
+                        Math.hypot(head.rightCm, head.upCm) > HEAD_LIMIT_CM || Math.abs(head.closerPct) > HEAD_LIMIT_PCT
+                          ? '#d32f2f'
+                          : undefined,
+                    }}
+                  >
+                    Head: {Math.abs(head.rightCm).toFixed(1)} cm {head.rightCm >= 0 ? 'right' : 'left'} ·{' '}
+                    {Math.abs(head.upCm).toFixed(1)} cm {head.upCm >= 0 ? 'up' : 'down'} ·{' '}
+                    {Math.abs(head.closerPct).toFixed(0)}% {head.closerPct >= 0 ? 'closer' : 'further'}
+                  </div>
+                )}
               </>
             ) : (
               <div style={{ color: '#666' }}>

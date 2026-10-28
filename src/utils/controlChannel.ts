@@ -27,6 +27,12 @@ export interface ControlAction {
   disabled?: boolean;
 }
 
+export interface HeadOffset {
+  rightCm: number;
+  upCm: number;
+  closerPct: number;
+}
+
 export interface AccuracyResult {
   label: string;
   percentInROI: number;
@@ -53,6 +59,9 @@ export type ControlMessage =
   // Live gaze during calibration / accuracy check, in participant viewport
   // CSS px (null = stop showing it).
   | { type: 'gaze'; point: { x: number; y: number; view: GazeView } | null }
+  // Head movement since calibration finished, from the participant's point of
+  // view (null = no calibration yet, or tracking paused).
+  | { type: 'head'; head: HeadOffset | null }
   // Buttons (and status lines) the current participant page offers the panel.
   // With `accuracy`, the panel shows the results and these buttons over the
   // live preview instead of in the bottom bar.

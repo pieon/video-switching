@@ -32,6 +32,10 @@ export default function EEGPage() {
   // (Start Recording).
   const baselineRef = useRef<HTMLVideoElement>(null);
   const [isBaselinePlaying, setIsBaselinePlaying] = useState(false);
+  // "Full screen" fills the browser window with the video. Real fullscreen
+  // (requestFullscreen) needs a click in this window, which a panel message
+  // isn't — so put the window itself in fullscreen (F11) for a full monitor.
+  const [isBaselineFull, setIsBaselineFull] = useState(false);
   const toggleBaseline = () => {
     const v = baselineRef.current;
     if (!v) return;
@@ -42,6 +46,12 @@ export default function EEGPage() {
     phase === 'video'
       ? [
           { id: 'playback', label: isBaselinePlaying ? '❚❚ Pause' : '▶︎ Play', variant: 'secondary', run: toggleBaseline },
+          {
+            id: 'fullscreen',
+            label: isBaselineFull ? 'Exit full screen' : '⛶ Full screen',
+            variant: 'secondary',
+            run: () => setIsBaselineFull((f) => !f),
+          },
           { id: 'continue', label: 'Continue to Calibration', run: () => router.push('/calibrate') },
         ]
       : []
@@ -157,12 +167,11 @@ export default function EEGPage() {
           }}
           onPause={() => setIsBaselinePlaying(false)}
           onEnded={() => endPhase()}
-          style={{
-            width: '100%',
-            borderRadius: 12,
-            background: '#000',
-            display: 'block',
-          }}
+          style={
+            isBaselineFull
+              ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', objectFit: 'contain', background: '#000', zIndex: 2000 }
+              : { width: '100%', borderRadius: 12, background: '#000', display: 'block' }
+          }
         />
       </Card>
     </PageLayout>

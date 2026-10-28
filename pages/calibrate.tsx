@@ -34,7 +34,7 @@ export default function CalibratePage() {
     setSelectedCameraId(localStorage.getItem(CAMERA_STORAGE_KEY) ?? '');
   }, []);
 
-  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setVideoPreview, startGazeLogging } = useWebGazerContext();
+  const { isReady, start, resume, pause, setGazeListener, clearCalibrationData, calibratePoint, setHeadHome, setVideoPreview, startGazeLogging } = useWebGazerContext();
 
   useEffect(() => {
     if (selectedCameraId === null) return;
@@ -187,6 +187,8 @@ export default function CalibratePage() {
     } else {
       setIsCalibrating(false);
       setShowAccuracyConfirm(true);
+      // The model is only valid for this head position; /control tracks drift from it.
+      setHeadHome();
     }
   };
 
