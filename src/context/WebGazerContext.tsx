@@ -12,6 +12,32 @@ const HEAD_REPORT_MS = 500;
 
 interface HeadPos { x: number; y: number; gap: number }
 
+// Gaze in viewport CSS px plus where the page sits on screen, so the panel can
+// place it on whatever surface was captured. screen.left/top are Chrome-only
+// (the monitor's origin on multi-screen setups).
+function postGaze(x: number, y: number) {
+  const scr = window.screen as Screen & { left?: number; top?: number };
+  postControl({
+    type: 'gaze',
+    point: {
+      x,
+      y,
+      view: {
+        innerW: window.innerWidth,
+        innerH: window.innerHeight,
+        outerW: window.outerWidth,
+        outerH: window.outerHeight,
+        screenX: window.screenX,
+        screenY: window.screenY,
+        screenLeft: scr.left ?? 0,
+        screenTop: scr.top ?? 0,
+        screenW: scr.width,
+        screenH: scr.height,
+      },
+    },
+  });
+}
+
 // Centre between the eyes and the distance between them, in webcam pixels,
 // from the face landmarks WebGazer found in its latest frame.
 function readHead(webgazer: any): HeadPos | null {
@@ -123,6 +149,9 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
             if (phase) logSampleRef.current(gazeData, videoIdRef.current ?? '', phase);
           }
           listenerRef.current?.(gazeData);
+          // From calibration until logout, the gaze dot is drawn on the control
+          // panel's preview only (never on the participant's screen).
+          if (loggingRef.current) postGaze(data.x, data.y);
         }
 
         const h = readHead(webgazer);
@@ -270,6 +299,7 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     saveAndClearSamples();
     loggingRef.current = false;
     videoIdRef.current = null;
+    postControl({ type: 'gaze', point: null });
   }, [saveAndClearSamples]);
 
   const flushGaze = useCallback(() => {
@@ -344,6 +374,7 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     gazeDataRef.current = [];
     headLatestRef.current = null;
     clearHead();
+    postControl({ type: 'gaze', point: null });
     setIsReady(false);
   }, []);
 
