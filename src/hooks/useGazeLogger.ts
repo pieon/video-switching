@@ -1,6 +1,6 @@
 // Hook to log every raw gaze sample (x, y) and upload it to the backend.
 import { useRef, useCallback, useEffect } from 'react';
-import { GazeData } from './useWebGazer';
+import type { GazeData } from '@/context/WebGazerContext';
 import { trackingService } from '@/services/trackingService';
 
 // Flush buffered gaze samples this often during a session. Keeps each upload

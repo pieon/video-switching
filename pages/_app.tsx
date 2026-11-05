@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { RecordingProvider, useRecording } from '@/context/RecordingContext';
 import { WebGazerProvider } from '@/context/WebGazerContext';
 import { useConfirmedLogout } from '@/hooks/useConfirmedLogout';
-import { postControl, useControlMessages } from '@/utils/controlChannel';
+import { postControl, useControlMessages, useCursorInWindow } from '@/utils/controlChannel';
 import '../src/styles/globals.css';
 
 // Participant-window side of the control panel: follows navigate/logout
@@ -42,24 +42,11 @@ function ControlReceiver() {
   // Report when the cursor enters/leaves this window, so the panel can warn
   // that a touch would land on the other display.
   const cursorOverRef = useRef(false);
-  useEffect(() => {
-    if (isPanel) return;
-    const set = (over: boolean) => {
-      if (cursorOverRef.current === over) return;
-      cursorOverRef.current = over;
-      postControl({ type: 'cursor', overParticipant: over });
-    };
-    const onOver = () => set(true);
-    const onOut = (e: MouseEvent) => {
-      if (!e.relatedTarget) set(false);
-    };
-    document.addEventListener('mouseover', onOver);
-    document.addEventListener('mouseout', onOut);
-    return () => {
-      document.removeEventListener('mouseover', onOver);
-      document.removeEventListener('mouseout', onOut);
-    };
-  }, [isPanel]);
+  useCursorInWindow((over) => {
+    if (cursorOverRef.current === over) return;
+    cursorOverRef.current = over;
+    postControl({ type: 'cursor', overParticipant: over });
+  }, !isPanel);
 
   useControlMessages((msg) => {
     if (isPanel) return;

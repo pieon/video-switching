@@ -93,6 +93,27 @@ export function useControlMessages(handler: (msg: ControlMessage) => void) {
   }, []);
 }
 
+// Calls onChange(true) when the mouse cursor enters this window and
+// onChange(false) when it leaves it. Off while `enabled` is false.
+export function useCursorInWindow(onChange: (inside: boolean) => void, enabled = true) {
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onOver = () => onChangeRef.current(true);
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) onChangeRef.current(false);
+    };
+    document.addEventListener('mouseover', onOver);
+    document.addEventListener('mouseout', onOut);
+    return () => {
+      document.removeEventListener('mouseover', onOver);
+      document.removeEventListener('mouseout', onOut);
+    };
+  }, [enabled]);
+}
+
 // Participant pages declare the experimenter buttons they currently offer;
 // the panel renders them and sends back { type: 'action', id } on click.
 export function useControlActions(

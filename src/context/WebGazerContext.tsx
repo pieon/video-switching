@@ -1,8 +1,13 @@
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/router';
-import { GazeData } from '@/hooks/useWebGazer';
 import { useAuth } from '@/context/AuthContext';
 import { useGazeLogger, GazePhase } from '@/hooks/useGazeLogger';
+
+export interface GazeData {
+  x: number;
+  y: number;
+  timestamp: number;
+}
 import { postControl } from '@/utils/controlChannel';
 
 // ponytail: assumes an adult eye spacing to turn webcam pixels into cm; the
@@ -67,10 +72,6 @@ interface WebGazerContextType {
   pause: () => void;
   /** Register (or clear) the handler that receives each gaze sample. */
   setGazeListener: (fn: ((data: GazeData) => void) | null) => void;
-  /** Toggle whether gaze samples are buffered for getGazeData(). */
-  setSaveGazeData: (save: boolean) => void;
-  getGazeData: () => GazeData[];
-  clearGazeData: () => void;
   /** Clear WebGazer's regression/calibration data (for recalibration). */
   clearCalibrationData: () => void;
   /** Feed an explicit calibration sample (known target) to the regression model. */
@@ -112,8 +113,6 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
   const startedRef = useRef(false);
   const startingRef = useRef(false);
   const listenerRef = useRef<((data: GazeData) => void) | null>(null);
-  const saveRef = useRef(false);
-  const gazeDataRef = useRef<GazeData[]>([]);
   // Head position: averaged over HEAD_REPORT_MS windows to smooth tracker jitter.
   const headHomeRef = useRef<HeadPos | null>(null);
   const headLatestRef = useRef<HeadPos | null>(null);
@@ -143,7 +142,6 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
             console.log(`[WebGazer] Gaze #${gazeCount}: x=${Math.round(data.x)}, y=${Math.round(data.y)}`);
           }
           const gazeData: GazeData = { x: data.x, y: data.y, timestamp };
-          if (saveRef.current) gazeDataRef.current.push(gazeData);
           if (loggingRef.current) {
             const phase = phaseForPath(pathnameRef.current);
             if (phase) logSampleRef.current(gazeData, videoIdRef.current ?? '', phase);
@@ -178,7 +176,8 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
       });
 
       webgazer.showVideoPreview(false);
-      webgazer.showPredictionPoints(true);
+      // The gaze dot is drawn only on /control, never on the participant's screen.
+      webgazer.showPredictionPoints(false);
       webgazer.applyKalmanFilter(true);
 
       const videoConstraints: MediaTrackConstraints = {
@@ -314,16 +313,6 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     listenerRef.current = fn;
   }, []);
 
-  const setSaveGazeData = useCallback((save: boolean) => {
-    saveRef.current = save;
-  }, []);
-
-  const getGazeData = useCallback(() => gazeDataRef.current, []);
-
-  const clearGazeData = useCallback(() => {
-    gazeDataRef.current = [];
-  }, []);
-
   const clearCalibrationData = useCallback(() => {
     webgazerRef.current?.clearData();
     clearHead();
@@ -370,8 +359,6 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
     loggingRef.current = false;
     videoIdRef.current = null;
     listenerRef.current = null;
-    saveRef.current = false;
-    gazeDataRef.current = [];
     headLatestRef.current = null;
     clearHead();
     postControl({ type: 'gaze', point: null });
@@ -397,9 +384,6 @@ export function WebGazerProvider({ children }: { children: ReactNode }) {
         resume,
         pause,
         setGazeListener,
-        setSaveGazeData,
-        getGazeData,
-        clearGazeData,
         clearCalibrationData,
         calibratePoint,
         setHeadHome,

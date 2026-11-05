@@ -17,7 +17,6 @@ export interface TrackingEvent {
 class TrackingService {
   private token: string | null = null;
   private eventQueue: TrackingEvent[] = [];
-  private flushInterval: number | null = null;
   private readonly FLUSH_INTERVAL_MS = 5000; // Flush every 5 seconds
   private readonly MAX_QUEUE_SIZE = 50;
 
@@ -349,19 +348,9 @@ class TrackingService {
    */
   private startAutoFlush() {
     if (typeof window !== 'undefined') {
-      this.flushInterval = window.setInterval(() => {
+      window.setInterval(() => {
         this.flush();
       }, this.FLUSH_INTERVAL_MS);
-    }
-  }
-
-  /**
-   * Stop auto-flushing
-   */
-  stopAutoFlush() {
-    if (this.flushInterval) {
-      clearInterval(this.flushInterval);
-      this.flushInterval = null;
     }
   }
 }

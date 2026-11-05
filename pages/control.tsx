@@ -2,7 +2,7 @@
 // Drives the participant window over a BroadcastChannel (see controlChannel).
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
-import { ControlMessage, GazeView, HeadOffset, postControl, useControlMessages } from '@/utils/controlChannel';
+import { ControlMessage, GazeView, HeadOffset, postControl, useControlMessages, useCursorInWindow } from '@/utils/controlChannel';
 
 type Status = Extract<ControlMessage, { type: 'status' }>;
 type PlayerStatus = Extract<ControlMessage, { type: 'playerStatus' }>;
@@ -23,6 +23,17 @@ const INACTIVE = '#ccc';
 // Head movement since calibration beyond which the line turns red.
 const HEAD_LIMIT_CM = 1.5;
 const HEAD_LIMIT_PCT = 10;
+
+// A stream the participant window (this panel's opener) is recording, or null
+// if it isn't recording or the opener navigated away / is not reachable.
+function openerStream(name: 'participantScreen' | 'participantWebcam'): MediaStream | null {
+  try {
+    const stream: MediaStream | null | undefined = window.opener?.[name];
+    return stream?.active ? stream : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function ControlPage() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -55,18 +66,7 @@ export default function ControlPage() {
   // anywhere else (desktop, other apps) shows as unknown.
   const [cursorOnParticipant, setCursorOnParticipant] = useState(false);
   const [cursorOnControl, setCursorOnControl] = useState(false);
-  useEffect(() => {
-    const onOver = () => setCursorOnControl(true);
-    const onOut = (e: MouseEvent) => {
-      if (!e.relatedTarget) setCursorOnControl(false);
-    };
-    document.addEventListener('mouseover', onOver);
-    document.addEventListener('mouseout', onOut);
-    return () => {
-      document.removeEventListener('mouseover', onOver);
-      document.removeEventListener('mouseout', onOut);
-    };
-  }, []);
+  useCursorInWindow(setCursorOnControl);
   const cursorSign = cursorOnParticipant
     ? { text: 'Cursor on PARTICIPANT screen', bg: '#349a4a' }
     : cursorOnControl
@@ -87,16 +87,9 @@ export default function ControlPage() {
   const wasRecordingRef = useRef(false);
 
   const showParticipantScreen = () => {
-    try {
-      const stream = window.opener?.participantScreen;
-      if (stream?.active) {
-        setPreviewSource({ stream, own: false });
-        return true;
-      }
-    } catch {
-      // Opener navigated away or is not reachable.
-    }
-    return false;
+    const stream = openerStream('participantScreen');
+    if (stream) setPreviewSource({ stream, own: false });
+    return !!stream;
   };
 
   // The participant's face, from the same webcam stream the participant window
@@ -104,12 +97,8 @@ export default function ControlPage() {
   const webcamRef = useRef<HTMLVideoElement>(null);
   const [webcam, setWebcam] = useState<MediaStream | null>(null);
   const showParticipantWebcam = () => {
-    try {
-      const stream = window.opener?.participantWebcam;
-      if (stream?.active) setWebcam(stream);
-    } catch {
-      // Opener navigated away or is not reachable.
-    }
+    const stream = openerStream('participantWebcam');
+    if (stream) setWebcam(stream);
   };
   useEffect(() => {
     if (webcamRef.current) webcamRef.current.srcObject = webcam;

@@ -32,7 +32,6 @@ export function VideoGrid({
             <VideoThumbnail
               key={video.id}
               video={video}
-              isCompleted={isCompleted}
               isCurrent={isCurrent}
               disabled={disabled}
               onClick={() => onSelectVideo(video.id)}

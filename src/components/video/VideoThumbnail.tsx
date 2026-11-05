@@ -4,7 +4,6 @@ import { Video } from '@/types';
 
 interface VideoThumbnailProps {
   video: Video;
-  isCompleted: boolean;
   isCurrent: boolean;
   disabled: boolean;
   onClick: () => void;

@@ -26,13 +26,6 @@ body.experiment-theme {
   color: #fff;
 }
 
-/* Hide WebGazer's red gaze-prediction dot everywhere. The persistent WebGazer
-   instance keeps this element in the DOM across pages. !important is required
-   because WebGazer sets display inline each frame. */
-#webgazerGazeDot {
-  display: none !important;
-}
-
 #__next {
   width: 100%;
 }

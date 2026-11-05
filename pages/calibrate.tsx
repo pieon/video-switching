@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { PageLayout, Header } from '@/components/layout';
 import { Card } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { GazeData } from '@/hooks/useWebGazer';
+import type { GazeData } from '@/context/WebGazerContext';
 import { useWebGazerContext } from '@/context/WebGazerContext';
 import { trackingService } from '@/services/trackingService';
 import { readDisplay, saveCalibrationDisplay } from '@/utils/displayInfo';
@@ -72,6 +72,11 @@ export default function CalibratePage() {
   useEffect(() => {
     dingRef.current = new Audio('/Images/audio/ding.wav');
   }, []);
+  const playDing = () => {
+    if (!dingRef.current) return;
+    dingRef.current.currentTime = 0;
+    dingRef.current.play().catch(() => {});
+  };
 
   // Each click on the active point is one sample. 5 × 9 = 45 must stay ≤
   // WebGazer's fixed 50-sample click buffer (dataWindow=50), or the earliest
@@ -204,11 +209,7 @@ export default function CalibratePage() {
 
   // Chime each time a new calibration point appears.
   useEffect(() => {
-    if (!isCalibrating || currentPointIndex === null) return;
-    if (dingRef.current) {
-      dingRef.current.currentTime = 0;
-      dingRef.current.play().catch(() => {});
-    }
+    if (isCalibrating && currentPointIndex !== null) playDing();
   }, [isCalibrating, currentPointIndex]);
 
   // Single gaze listener active while calibrating or measuring: it buffers
@@ -252,10 +253,7 @@ export default function CalibratePage() {
       gazeCollectionRef.current = [];
 
       // Chime as each validation target (star) appears.
-      if (dingRef.current) {
-        dingRef.current.currentTime = 0;
-        dingRef.current.play().catch(() => {});
-      }
+      playDing();
 
       // Let the eyes reach the dot, then collect for the validation window.
       await sleep(TIME_TO_SACCADE);
