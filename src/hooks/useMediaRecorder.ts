@@ -4,11 +4,12 @@ import { appendChunk, getPendingChunks, clearChunks } from '@/utils/recordingSto
 import { trackingService } from '@/services/trackingService';
 import { readDisplay } from '@/utils/displayInfo';
 
-// The screen being recorded, exposed so the control panel (opened by this
-// window) can show the same screen without a second share prompt.
+// The screen and webcam being recorded, exposed so the control panel (opened
+// by this window) can show them without a second share prompt.
 declare global {
   interface Window {
     participantScreen?: MediaStream | null;
+    participantWebcam?: MediaStream | null;
   }
 }
 
@@ -137,6 +138,7 @@ export function useMediaRecorder({
         audio: false,
       });
       webcamStreamRef.current = webcamStream;
+      window.participantWebcam = webcamStream;
 
       // Set up screen recorder
       const screenRecorder = new MediaRecorder(screenStream, {
@@ -224,6 +226,7 @@ export function useMediaRecorder({
     if (webcamStreamRef.current) {
       webcamStreamRef.current.getTracks().forEach((track) => track.stop());
       webcamStreamRef.current = null;
+      window.participantWebcam = null;
     }
 
     setIsRecording(false);

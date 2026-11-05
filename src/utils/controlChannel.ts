@@ -62,6 +62,8 @@ export type ControlMessage =
   // Head movement since calibration finished, from the participant's point of
   // view (null = no calibration yet, or tracking paused).
   | { type: 'head'; head: HeadOffset | null }
+  // Whether the mouse cursor is over the participant window.
+  | { type: 'cursor'; overParticipant: boolean }
   // Buttons (and status lines) the current participant page offers the panel.
   // With `accuracy`, the panel shows the results and these buttons over the
   // live preview instead of in the bottom bar.

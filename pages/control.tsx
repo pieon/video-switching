@@ -35,7 +35,11 @@ export default function ControlPage() {
     if (msg.type === 'status') {
       // Recording just started (or was already on when this panel opened):
       // show the screen the participant chose to share.
-      if (msg.isRecording && !wasRecordingRef.current) showParticipantScreen();
+      if (msg.isRecording && !wasRecordingRef.current) {
+        showParticipantScreen();
+        showParticipantWebcam();
+      }
+      if (!msg.isRecording) setWebcam(null);
       wasRecordingRef.current = msg.isRecording;
       setStatus(msg);
       if (!msg.path.startsWith('/player')) setPlayer(null);
@@ -44,7 +48,30 @@ export default function ControlPage() {
     if (msg.type === 'actions') setPageActions(msg);
     if (msg.type === 'gaze') setGaze(msg.point);
     if (msg.type === 'head') setHead(msg.head);
+    if (msg.type === 'cursor') setCursorOnParticipant(msg.overParticipant);
   });
+
+  // Where the mouse cursor is. Browsers only see it over their own windows, so
+  // anywhere else (desktop, other apps) shows as unknown.
+  const [cursorOnParticipant, setCursorOnParticipant] = useState(false);
+  const [cursorOnControl, setCursorOnControl] = useState(false);
+  useEffect(() => {
+    const onOver = () => setCursorOnControl(true);
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) setCursorOnControl(false);
+    };
+    document.addEventListener('mouseover', onOver);
+    document.addEventListener('mouseout', onOut);
+    return () => {
+      document.removeEventListener('mouseover', onOver);
+      document.removeEventListener('mouseout', onOut);
+    };
+  }, []);
+  const cursorSign = cursorOnParticipant
+    ? { text: 'Cursor on PARTICIPANT screen', bg: '#349a4a' }
+    : cursorOnControl
+    ? { text: 'Cursor on CONTROL screen', bg: '#d32f2f' }
+    : { text: 'Cursor hovering (Click to decide)', bg: '#dbba00' };
 
   // Ask an already-open participant window to report in.
   useEffect(() => postControl({ type: 'ping' }), []);
@@ -71,6 +98,24 @@ export default function ControlPage() {
     }
     return false;
   };
+
+  // The participant's face, from the same webcam stream the participant window
+  // records, so the experimenter can see where they are looking.
+  const webcamRef = useRef<HTMLVideoElement>(null);
+  const [webcam, setWebcam] = useState<MediaStream | null>(null);
+  const showParticipantWebcam = () => {
+    try {
+      const stream = window.opener?.participantWebcam;
+      if (stream?.active) setWebcam(stream);
+    } catch {
+      // Opener navigated away or is not reachable.
+    }
+  };
+  useEffect(() => {
+    if (webcamRef.current) webcamRef.current.srcObject = webcam;
+  }, [webcam]);
+  const headMoved =
+    !!head && (Math.hypot(head.rightCm, head.upCm) > HEAD_LIMIT_CM || Math.abs(head.closerPct) > HEAD_LIMIT_PCT);
 
   const showScreen = async () => {
     if (showParticipantScreen()) return;
@@ -175,7 +220,7 @@ export default function ControlPage() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui' }}>
       {/* Live preview fills everything above the stage bar */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#000' }}>
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#000', overflow: 'hidden' }}>
         <video
           ref={previewRef}
           autoPlay
@@ -198,6 +243,61 @@ export default function ControlPage() {
             }}
           />
         )}
+        {/* Top-left corner: which screen the mouse cursor is on */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 2,
+            padding: '8px 14px',
+            borderRadius: 8,
+            background: cursorSign.bg,
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 'bold',
+            pointerEvents: 'none',
+          }}
+        >
+          {cursorSign.text}
+        </div>
+        {/* Bottom-right corner: head movement since calibration, above the
+            participant's face. Mirrored, so looking to their right turns the
+            eyes toward the right of this image too. Outline turns red when the
+            head has moved too far. */}
+        <div
+          style={{
+            position: 'absolute',
+            right: 12,
+            bottom: 12,
+            zIndex: 2,
+            width: 280,
+            display: webcam ? 'flex' : 'none',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          {head && (
+            <div style={{ color: headMoved ? '#ff5252' : '#fff', fontSize: 13, fontWeight: headMoved ? 'bold' : undefined }}>
+              Head: {Math.abs(head.rightCm).toFixed(1)} cm {head.rightCm >= 0 ? 'right' : 'left'} ·{' '}
+              {Math.abs(head.upCm).toFixed(1)} cm {head.upCm >= 0 ? 'up' : 'down'} ·{' '}
+              {Math.abs(head.closerPct).toFixed(0)}% {head.closerPct >= 0 ? 'closer' : 'further'}
+            </div>
+          )}
+          <video
+            ref={webcamRef}
+            autoPlay
+            muted
+            playsInline
+            style={{
+              width: '100%',
+              borderRadius: 8,
+              border: `${headMoved ? 4 : 2}px solid ${headMoved ? '#d32f2f' : '#fff'}`,
+              transform: 'scaleX(-1)',
+              display: 'block',
+            }}
+          />
+        </div>
         {/* Top-right corner: Hide (while previewing), then Logout */}
         <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           {preview && (
@@ -277,20 +377,6 @@ export default function ControlPage() {
                   <div style={{ color: '#666', fontSize: 12 }}>Start it by clicking in the participant window (EEG page)</div>
                 )}
                 {player?.displayWarning && <div style={{ color: '#e65100' }}>⚠ {player.displayWarning}</div>}
-                {head && (
-                  <div
-                    style={{
-                      color:
-                        Math.hypot(head.rightCm, head.upCm) > HEAD_LIMIT_CM || Math.abs(head.closerPct) > HEAD_LIMIT_PCT
-                          ? '#d32f2f'
-                          : undefined,
-                    }}
-                  >
-                    Head: {Math.abs(head.rightCm).toFixed(1)} cm {head.rightCm >= 0 ? 'right' : 'left'} ·{' '}
-                    {Math.abs(head.upCm).toFixed(1)} cm {head.upCm >= 0 ? 'up' : 'down'} ·{' '}
-                    {Math.abs(head.closerPct).toFixed(0)}% {head.closerPct >= 0 ? 'closer' : 'further'}
-                  </div>
-                )}
               </>
             ) : (
               <div style={{ color: '#666' }}>

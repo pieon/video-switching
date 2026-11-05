@@ -1,5 +1,5 @@
 // Next.js App wrapper with AuthProvider
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -39,9 +39,34 @@ function ControlReceiver() {
     return () => document.removeEventListener('contextmenu', block);
   }, [allowContextMenu]);
 
+  // Report when the cursor enters/leaves this window, so the panel can warn
+  // that a touch would land on the other display.
+  const cursorOverRef = useRef(false);
+  useEffect(() => {
+    if (isPanel) return;
+    const set = (over: boolean) => {
+      if (cursorOverRef.current === over) return;
+      cursorOverRef.current = over;
+      postControl({ type: 'cursor', overParticipant: over });
+    };
+    const onOver = () => set(true);
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) set(false);
+    };
+    document.addEventListener('mouseover', onOver);
+    document.addEventListener('mouseout', onOut);
+    return () => {
+      document.removeEventListener('mouseover', onOver);
+      document.removeEventListener('mouseout', onOut);
+    };
+  }, [isPanel]);
+
   useControlMessages((msg) => {
     if (isPanel) return;
-    if (msg.type === 'ping') sendStatus();
+    if (msg.type === 'ping') {
+      sendStatus();
+      postControl({ type: 'cursor', overParticipant: cursorOverRef.current });
+    }
     if (msg.type === 'logout') confirmLogout({ confirm: false });
     if (msg.type === 'navigate') {
       if (msg.path === '/training' && user) {
