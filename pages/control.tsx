@@ -208,95 +208,107 @@ export default function ControlPage() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui' }}>
-      {/* Live preview fills everything above the stage bar */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#000', overflow: 'hidden' }}>
-        <video
-          ref={previewRef}
-          autoPlay
-          muted
-          playsInline
-          style={{ width: '100%', height: '100%', objectFit: 'contain', display: preview ? 'block' : 'none' }}
-        />
-        {gazeDot && (
-          <div
-            style={{
-              position: 'absolute',
-              left: gazeDot.left,
-              top: gazeDot.top,
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              background: 'rgba(255, 0, 0, 0.6)',
-              transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none',
-            }}
-          />
-        )}
-        {/* Top-left corner: which screen the mouse cursor is on */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 12,
-            left: 12,
-            zIndex: 2,
-            padding: '8px 14px',
-            borderRadius: 8,
-            background: cursorSign.bg,
-            color: '#fff',
-            fontSize: 16,
-            fontWeight: 'bold',
-            pointerEvents: 'none',
-          }}
-        >
-          {cursorSign.text}
-        </div>
-        {/* Bottom-right corner: head movement since calibration, above the
-            participant's face. Mirrored, so looking to their right turns the
-            eyes toward the right of this image too. Outline turns red when the
-            head has moved too far. */}
-        <div
-          style={{
-            position: 'absolute',
-            right: 12,
-            bottom: 12,
-            zIndex: 2,
-            width: 280,
-            display: webcam ? 'flex' : 'none',
-            flexDirection: 'column',
-            gap: 6,
-          }}
-        >
-          {head && (
-            <div style={{ color: headMoved ? '#ff5252' : '#fff', fontSize: 13, fontWeight: headMoved ? 'bold' : undefined }}>
-              Head: {Math.abs(head.rightCm).toFixed(1)} cm {head.rightCm >= 0 ? 'right' : 'left'} ·{' '}
-              {Math.abs(head.upCm).toFixed(1)} cm {head.upCm >= 0 ? 'up' : 'down'} ·{' '}
-              {Math.abs(head.closerPct).toFixed(0)}% {head.closerPct >= 0 ? 'closer' : 'further'}
-            </div>
-          )}
+      {/* Everything above the stage bar: live preview, plus a right-hand column
+          for the buttons and the participant's camera. The column takes its own
+          width, so the preview shrinks to fit beside it on any monitor shape
+          instead of sliding under the camera view. */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#000', overflow: 'hidden', display: 'flex' }}>
+        {/* marginLeft, not padding: the gaze dot is positioned from this box's
+            edge, so padding would shift it off the video. */}
+        <div style={{ flex: 1, minWidth: 0, marginLeft: 8, position: 'relative', overflow: 'hidden' }}>
           <video
-            ref={webcamRef}
+            ref={previewRef}
             autoPlay
             muted
             playsInline
-            style={{
-              width: '100%',
-              borderRadius: 8,
-              border: `${headMoved ? 4 : 2}px solid ${headMoved ? '#d32f2f' : '#fff'}`,
-              transform: 'scaleX(-1)',
-              display: 'block',
-            }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', display: preview ? 'block' : 'none' }}
           />
-        </div>
-        {/* Top-right corner: Hide (while previewing), then Logout */}
-        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          {preview && (
-            <Button size="small" variant="secondary" onClick={() => setPreviewSource(null)}>
-              Hide
-            </Button>
+          {gazeDot && (
+            <div
+              style={{
+                position: 'absolute',
+                left: gazeDot.left,
+                top: gazeDot.top,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: 'rgba(255, 0, 0, 0.6)',
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none',
+              }}
+            />
           )}
-          <Button size="small" variant="danger" onClick={logout}>
-            Exit
-          </Button>
+          {!preview && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>
+              <p>Pick the participant window or monitor in the share dialog.</p>
+              <Button onClick={showScreen}>Show participant screen</Button>
+            </div>
+          )}
+        </div>
+        {/* Right column: Hide / Exit at the top; at the bottom, head movement
+            since calibration above the participant's face. The face is
+            mirrored, so looking to their right turns the eyes toward the right
+            of this image too. Outline turns red when the head moved too far. */}
+        <div
+          style={{
+            width: 280,
+            flexShrink: 0,
+            padding: '8px',
+            position: 'relative',
+            zIndex: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            {/* Which screen the mouse cursor is on */}
+            <div
+              style={{
+                alignSelf: 'stretch',
+                padding: '6px 10px',
+                borderRadius: 8,
+                background: cursorSign.bg,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 'bold',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {cursorSign.text}
+            </div>
+            {preview && (
+              <Button size="small" variant="secondary" onClick={() => setPreviewSource(null)}>
+                Hide
+              </Button>
+            )}
+            <Button size="small" variant="danger" onClick={logout}>
+              Exit
+            </Button>
+          </div>
+          <div style={{ display: webcam ? 'flex' : 'none', flexDirection: 'column', gap: 6 }}>
+            {head && (
+              <div style={{ color: headMoved ? '#ff5252' : '#fff', fontSize: 13, fontWeight: headMoved ? 'bold' : undefined }}>
+                Head: {Math.abs(head.rightCm).toFixed(1)} cm {head.rightCm >= 0 ? 'right' : 'left'} ·{' '}
+                {Math.abs(head.upCm).toFixed(1)} cm {head.upCm >= 0 ? 'up' : 'down'} ·{' '}
+                {Math.abs(head.closerPct).toFixed(0)}% {head.closerPct >= 0 ? 'closer' : 'further'}
+              </div>
+            )}
+            <video
+              ref={webcamRef}
+              autoPlay
+              muted
+              playsInline
+              style={{
+                width: '100%',
+                borderRadius: 8,
+                border: `${headMoved ? 4 : 2}px solid ${headMoved ? '#d32f2f' : '#fff'}`,
+                transform: 'scaleX(-1)',
+                display: 'block',
+              }}
+            />
+          </div>
         </div>
 
         {/* Accuracy-check results and choices, over the live preview */}
@@ -337,13 +349,6 @@ export default function ControlPage() {
                 ))}
               </div>
             </div>
-          </div>
-        )}
-
-        {!preview && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>
-            <p>Pick the participant window or monitor in the share dialog.</p>
-            <Button onClick={showScreen}>Show participant screen</Button>
           </div>
         )}
       </div>
